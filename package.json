@@ -1,0 +1,39 @@
+{
+  "name": "cedro-os",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:lan": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test:whatsapp": "node --import tsx --test lib/whatsapp/whatsapp-webhook.test.ts",
+    "whatsapp:setup": "node scripts/whatsapp-setup-env.mjs",
+    "whatsapp:test-pipeline": "node scripts/whatsapp-test-pipeline.mjs",
+    "whatsapp:test-webhook": "node scripts/whatsapp-test-webhook-post.mjs",
+    "portal:verify": "node scripts/verify-portal-funcionarios.mjs",
+    "portal:apply-sql": "node scripts/apply-portal-funcionarios.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.111.0",
+    "next": "16.2.12",
+    "openai": "^7.4.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.10.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "pg": "^8.22.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.5",
+    "typescript": "^5"
+  }
+}
