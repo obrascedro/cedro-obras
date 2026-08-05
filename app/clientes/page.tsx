@@ -8,7 +8,7 @@ export default function ClientesPage() {
       description="Preencha os dados abaixo para cadastrar um novo cliente."
       maxWidth="md"
     >
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="cedro-card p-6 sm:p-8">
         <ClienteForm />
       </div>
     </PageShell>

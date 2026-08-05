@@ -196,28 +196,28 @@ export default function FinanceiroModulos() {
       {MODULOS.map(({ titulo, descricao, Icon, href }) => (
         <article
           key={titulo}
-          className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
+          className="cedro-card flex flex-col p-6 transition-colors hover:border-[var(--cedro-border-strong)]"
         >
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--cedro-bg)] text-[var(--cedro-text)]">
             <Icon className="h-6 w-6" />
           </div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
             {titulo}
           </h2>
-          <p className="mt-2 flex-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 flex-1 text-sm leading-6 text-[var(--cedro-text-muted)]">
             {descricao}
           </p>
           {href ? (
             <Link
               href={href}
-              className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="cedro-btn-primary mt-6 inline-flex w-full items-center justify-center px-4 py-2.5 text-sm"
             >
               Acessar
             </Link>
           ) : (
             <button
               type="button"
-              className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="cedro-btn-primary mt-6 inline-flex w-full items-center justify-center px-4 py-2.5 text-sm"
             >
               Acessar
             </button>

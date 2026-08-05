@@ -1,103 +1,126 @@
 "use client";
 
-import { useState } from "react";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { Pencil, Trash2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { excluirGastoObraAdminAction } from "@/app/actions/gastos-admin";
+import GastoEditarModal from "@/app/components/GastoEditarModal";
 import GastoForm from "@/app/components/GastoForm";
-
-export type GastoObra = {
-  id: string;
-  etapa: string;
-  categoria: string;
-  descricao: string;
-  fornecedor: string | null;
-  quantidade: number | null;
-  valor_unitario: number | null;
-  valor_total: number | null;
-  data_gasto: string | null;
-};
+import { btnPrimarySmClassName } from "@/app/components/ui/form-styles";
+import { formatCurrency, formatDate } from "@/lib/format";
+import type { GastoObraRow } from "@/lib/gastos-obra";
 
 type ObraGastosSectionProps = {
   obraId: string;
-  gastos: GastoObra[];
+  gastos: GastoObraRow[];
   totalGasto: number;
   gastosPorEtapa: { etapa: string; total: number }[];
+  isAdmin?: boolean;
 };
+
+function badgeOrigem(origem: string | null) {
+  if (origem === "migracao") {
+    return (
+      <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset dark:bg-amber-950/40 dark:text-amber-300">
+        Migração
+      </span>
+    );
+  }
+  return null;
+}
 
 export default function ObraGastosSection({
   obraId,
   gastos,
   totalGasto,
   gastosPorEtapa,
+  isAdmin = false,
 }: ObraGastosSectionProps) {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
+  const [editando, setEditando] = useState<GastoObraRow | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleExcluir(gastoId: string) {
+    if (!confirm("Excluir este gasto? O total da obra será recalculado.")) return;
+
+    startTransition(async () => {
+      const result = await excluirGastoObraAdminAction(gastoId);
+      if (result.sucesso) {
+        router.refresh();
+      } else if (result.erro) {
+        alert(result.erro);
+      }
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
             Gastos da obra
           </h2>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-[var(--cedro-text-muted)]">
             Total gasto:{" "}
-            <span className="font-medium text-zinc-900 dark:text-zinc-50">
+            <span className="font-medium text-[var(--cedro-text)]">
               {formatCurrency(totalGasto)}
             </span>
           </p>
         </div>
-        {!showForm && (
+        {isAdmin && !showForm ? (
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className={btnPrimarySmClassName}
           >
             Adicionar gasto
           </button>
-        )}
+        ) : null}
       </div>
 
-      {showForm && (
+      {showForm ? (
         <GastoForm
           obraId={obraId}
           onCancel={() => setShowForm(false)}
           onSuccess={() => setShowForm(false)}
         />
-      )}
+      ) : null}
 
-      {gastosPorEtapa.length > 0 && (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h3 className="mb-4 text-sm font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+      {gastosPorEtapa.length > 0 ? (
+        <div className="cedro-card p-6">
+          <h3 className="mb-4 text-sm font-semibold tracking-wide text-[var(--cedro-text-muted)] uppercase">
             Gastos por etapa
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {gastosPorEtapa.map((item) => (
               <div
                 key={item.etapa}
-                className="rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/50"
+                className="rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-bg)] px-4 py-3"
               >
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                <p className="text-sm font-medium text-[var(--cedro-text)]">
                   {item.etapa}
                 </p>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
                   {formatCurrency(item.total)}
                 </p>
               </div>
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {gastos.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <div className="cedro-card border-dashed p-10 text-center">
+          <p className="text-sm text-[var(--cedro-text-muted)]">
             Nenhum gasto registrado para esta obra.
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-              <thead className="bg-zinc-50 dark:bg-zinc-950/50">
+        <div className="cedro-card overflow-hidden">
+          <div className="cedro-table-wrap">
+            <table className="cedro-table">
+              <thead>
                 <tr>
                   {[
                     "Data",
@@ -108,47 +131,65 @@ export default function ObraGastosSection({
                     "Qtd.",
                     "Unit.",
                     "Total",
+                    ...(isAdmin ? ["Ações"] : []),
                   ].map((header) => (
-                    <th
-                      key={header}
-                      scope="col"
-                      className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
-                    >
+                    <th key={header} scope="col">
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody>
                 {gastos.map((gasto) => (
-                  <tr
-                    key={gasto.id}
-                    className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
-                  >
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                  <tr key={gasto.id}>
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatDate(gasto.data_gasto)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-900 dark:text-zinc-50">
+                    <td className="whitespace-nowrap font-medium">
                       {gasto.etapa}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {gasto.categoria}
                     </td>
-                    <td className="px-4 py-4 text-sm text-zinc-600 dark:text-zinc-300">
+                    <td className="text-[var(--cedro-text-muted)]">
                       {gasto.descricao}
+                      {badgeOrigem(gasto.origem)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {gasto.fornecedor ?? "—"}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {gasto.quantidade ?? "—"}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatCurrency(gasto.valor_unitario ?? 0)}
                     </td>
-                    <td className="px-4 py-4 text-sm font-medium whitespace-nowrap text-zinc-900 dark:text-zinc-50">
+                    <td className="whitespace-nowrap font-medium">
                       {formatCurrency(gasto.valor_total ?? 0)}
                     </td>
+                    {isAdmin ? (
+                      <td className="whitespace-nowrap">
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditando(gasto)}
+                            className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            aria-label="Editar gasto"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => handleExcluir(gasto.id)}
+                            className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            aria-label="Excluir gasto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -156,6 +197,13 @@ export default function ObraGastosSection({
           </div>
         </div>
       )}
+
+      {editando ? (
+        <GastoEditarModal
+          gasto={editando}
+          onFechar={() => setEditando(null)}
+        />
+      ) : null}
     </div>
   );
 }

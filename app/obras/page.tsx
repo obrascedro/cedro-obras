@@ -1,6 +1,6 @@
 import Link from "next/link";
 import PageShell from "@/app/components/PageShell";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 type Obra = {
@@ -30,17 +30,18 @@ function statusBadgeClass(status: string) {
     case "Em andamento":
       return "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950/40 dark:text-blue-300";
     case "Concluída":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300";
+      return "bg-[var(--cedro-success-bg)] text-[var(--cedro-success)] ring-[var(--cedro-success)]/20";
     case "Pausada":
-      return "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300";
+      return "bg-amber-50 text-amber-700 ring-amber-600/20";
     case "Cancelada":
-      return "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/40 dark:text-red-300";
+      return "bg-[var(--cedro-error-bg)] text-[var(--cedro-error)] ring-[var(--cedro-error)]/20";
     default:
-      return "bg-zinc-100 text-zinc-700 ring-zinc-600/20 dark:bg-zinc-800 dark:text-zinc-300";
+      return "bg-[var(--cedro-bg)] text-[var(--cedro-text-muted)] ring-[var(--cedro-border)]";
   }
 }
 
 export default async function ObrasPage() {
+  const supabase = await createSupabaseServerClient();
   const { data: obras, error } = await supabase
     .from("obras")
     .select(
@@ -56,33 +57,33 @@ export default async function ObrasPage() {
       action={
         <Link
           href="/obras/nova"
-          className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="cedro-btn-primary px-4 py-2.5 text-sm"
         >
           Nova obra
         </Link>
       }
     >
       {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+        <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-6 text-sm text-[var(--cedro-error)]">
           Erro ao carregar obras: {error.message}
         </div>
       ) : !obras?.length ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <div className="cedro-card border-dashed p-12 text-center">
+          <p className="text-sm text-[var(--cedro-text-muted)]">
             Nenhuma obra cadastrada ainda.
           </p>
           <Link
             href="/obras/nova"
-            className="mt-4 inline-flex text-sm font-medium text-zinc-900 underline underline-offset-4 dark:text-zinc-50"
+            className="mt-4 inline-flex text-sm font-medium text-[var(--cedro-brown)] underline underline-offset-4"
           >
             Cadastrar primeira obra
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-              <thead className="bg-zinc-50 dark:bg-zinc-950/50">
+        <div className="cedro-card overflow-hidden">
+          <div className="cedro-table-wrap">
+            <table className="cedro-table">
+              <thead>
                 <tr>
                   {[
                     "Obra",
@@ -99,62 +100,58 @@ export default async function ObrasPage() {
                     <th
                       key={header}
                       scope="col"
-                      className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
                     >
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody>
                 {(obras as Obra[]).map((obra) => (
-                  <tr
-                    key={obra.id}
-                    className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
-                  >
-                    <td className="px-4 py-4 text-sm font-medium whitespace-nowrap">
+                  <tr key={obra.id}>
+                    <td className="whitespace-nowrap font-medium">
                       <Link
                         href={`/obras/${obra.id}`}
-                        className="text-zinc-900 underline-offset-4 transition-colors hover:text-zinc-600 hover:underline dark:text-zinc-50 dark:hover:text-zinc-300"
+                        className="text-[var(--cedro-brown)] underline-offset-4 transition-colors hover:underline"
                       >
                         {obra.nome}
                       </Link>
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {getClienteNome(obra.clientes)}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(obra.status)}`}
                       >
                         {obra.status}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatCurrency(obra.orcamento_previsto ?? 0)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatCurrency(obra.valor_recebido ?? 0)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatCurrency(obra.gasto_realizado ?? 0)}
                     </td>
                     <td
-                      className={`px-4 py-4 text-sm font-medium whitespace-nowrap ${
+                      className={`whitespace-nowrap font-medium ${
                         (obra.lucro_estimado ?? 0) >= 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
+                          ? "text-[var(--cedro-success)]"
+                          : "text-[var(--cedro-error)]"
                       }`}
                     >
                       {formatCurrency(obra.lucro_estimado ?? 0)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatDate(obra.data_inicio)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatDate(obra.data_previsao_termino)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {obra.area_m2 ? `${obra.area_m2} m²` : "—"}
                     </td>
                   </tr>

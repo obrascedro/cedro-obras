@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageShell from "@/app/components/PageShell";
 import ImportarGastosClient from "@/app/components/ImportarGastosClient";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -10,6 +10,7 @@ type PageProps = {
 
 export default async function ImportarGastosPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createSupabaseServerClient();
 
   const { data: obra, error } = await supabase
     .from("obras")

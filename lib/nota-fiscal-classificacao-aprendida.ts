@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
 import { logNotaFiscal, logNotaFiscalError } from "@/lib/nota-fiscal-log";
 import {
   gerarChaveClassificacao,
@@ -34,7 +33,7 @@ function invalidarCacheAprendidas() {
 }
 
 export async function carregarClassificacoesAprendidas(
-  client: SupabaseClient = supabase,
+  client: SupabaseClient,
   opcoes?: { forcarRecarga?: boolean }
 ): Promise<Map<string, ClassificacaoAprendida>> {
   const agora = Date.now();
@@ -101,7 +100,7 @@ export async function salvarClassificacaoAprendida(
   descricao: string,
   categoria: string,
   etapa: string,
-  client: SupabaseClient = supabase
+  client: SupabaseClient
 ): Promise<void> {
   const termoChave = gerarChaveClassificacao(descricao);
   if (!termoChave || !descricao.trim()) return;

@@ -1,52 +1,82 @@
-import { supabase } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export async function recalcularFinanceiroObra(
-  obraId: string,
-  client: SupabaseClient = supabase
-) {
-  const { data: gastos, error: fetchGastosError } = await client
-    .from("gastos_obra")
-    .select("valor_total")
-    .eq("obra_id", obraId);
+export type GastoObraRow = {
+  id: string;
+  obra_id: string;
+  etapa: string;
+  categoria: string;
+  descricao: string;
+  fornecedor: string | null;
+  quantidade: number | null;
+  valor_unitario: number | null;
+  valor_total: number | null;
+  data_gasto: string | null;
+  origem: string | null;
+  ativo: boolean;
+};
 
-  if (fetchGastosError) {
-    throw fetchGastosError;
-  }
+const GASTO_OBRA_SELECT =
+  "id, obra_id, etapa, categoria, descricao, fornecedor, quantidade, valor_unitario, valor_total, data_gasto, origem, ativo";
 
-  const gastoRealizado = (gastos ?? []).reduce(
-    (sum, gasto) => sum + (gasto.valor_total ?? 0),
-    0
-  );
-
-  const { data: obra, error: fetchObraError } = await client
-    .from("obras")
-    .select("valor_recebido")
-    .eq("id", obraId)
-    .single();
-
-  if (fetchObraError) {
-    throw fetchObraError;
-  }
-
-  const lucroEstimado = (obra?.valor_recebido ?? 0) - gastoRealizado;
-
-  const { error: updateError } = await client
-    .from("obras")
-    .update({
-      gasto_realizado: gastoRealizado,
-      lucro_estimado: lucroEstimado,
-    })
-    .eq("id", obraId);
-
-  if (updateError) {
-    throw updateError;
-  }
-
-  return { gastoRealizado, lucroEstimado };
+function mapGastoObra(row: Record<string, unknown>): GastoObraRow {
+  return {
+    id: String(row.id),
+    obra_id: String(row.obra_id),
+    etapa: String(row.etapa ?? ""),
+    categoria: String(row.categoria ?? ""),
+    descricao: String(row.descricao ?? ""),
+    fornecedor: (row.fornecedor as string | null) ?? null,
+    quantidade:
+      row.quantidade != null ? Number(row.quantidade) : null,
+    valor_unitario:
+      row.valor_unitario != null ? Number(row.valor_unitario) : null,
+    valor_total: row.valor_total != null ? Number(row.valor_total) : null,
+    data_gasto: (row.data_gasto as string | null) ?? null,
+    origem: (row.origem as string | null) ?? "manual",
+    ativo: row.ativo !== false,
+  };
 }
 
-export async function recalcularGastoRealizado(obraId: string) {
-  const { gastoRealizado } = await recalcularFinanceiroObra(obraId);
-  return gastoRealizado;
+/** Soma gastos ativos da obra — fonte única de verdade para gasto realizado. */
+export async function somarGastosObra(
+  client: SupabaseClient,
+  obraId: string
+): Promise<number> {
+  const { data, error } = await client
+    .from("gastos_obra")
+    .select("valor_total")
+    .eq("obra_id", obraId)
+    .eq("ativo", true);
+
+  if (error) {
+    console.error("[gastos-obra] somar.erro", error.message);
+    throw error;
+  }
+
+  return (data ?? []).reduce(
+    (sum, row) => sum + Number(row.valor_total ?? 0),
+    0
+  );
+}
+
+export async function listarGastosObra(
+  client: SupabaseClient,
+  obraId: string
+): Promise<GastoObraRow[]> {
+  const { data, error } = await client
+    .from("gastos_obra")
+    .select(GASTO_OBRA_SELECT)
+    .eq("obra_id", obraId)
+    .eq("ativo", true)
+    .order("data_gasto", { ascending: false })
+    .order("criado_em", { ascending: false });
+
+  if (error) {
+    console.error("[gastos-obra] listar.erro", error.message);
+    throw error;
+  }
+
+  return (data ?? []).map((row) =>
+    mapGastoObra(row as Record<string, unknown>)
+  );
 }

@@ -3,15 +3,16 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
-import { supabase } from "@/lib/supabase";
-import { recalcularGastoRealizado } from "@/lib/gastos-obra";
+import {
+  importarGastosObraAdminAction,
+  type GastoImportRow,
+} from "@/app/actions/gastos-admin";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   type GastoImportPreview,
   isValidImportRow,
   parseSpreadsheetRows,
   syncRowValues,
-  toSupabaseInsert,
 } from "@/lib/importar-gastos";
 import { inputClassName } from "@/app/components/ui/form-styles";
 
@@ -113,39 +114,36 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
 
     setLoading(true);
 
-    const payload = validRows.map((row) => toSupabaseInsert(row, obraId));
-    const { error } = await supabase.from("gastos_obra").insert(payload);
+    const linhas: GastoImportRow[] = validRows.map((row) => ({
+      etapa: row.etapa,
+      categoria: row.categoria,
+      descricao: row.descricao,
+      fornecedor: row.fornecedor.trim() || null,
+      quantidade: row.quantidade,
+      valor_unitario: row.valor_unitario,
+      valor_total: row.valor_total,
+      data_gasto: row.data_gasto || null,
+    }));
 
-    if (error) {
-      setLoading(false);
-      setImportError(error.message);
-      return;
-    }
-
-    try {
-      await recalcularGastoRealizado(obraId);
-    } catch (recalcError) {
-      setLoading(false);
-      setImportError(
-        recalcError instanceof Error
-          ? recalcError.message
-          : "Erro ao atualizar o gasto realizado da obra."
-      );
-      return;
-    }
-
+    const result = await importarGastosObraAdminAction(obraId, linhas);
     setLoading(false);
-    setImportSummary(`${validRows.length} linha(s) importada(s) com sucesso.`);
+
+    if (result.erro) {
+      setImportError(result.erro);
+      return;
+    }
+
+    setImportSummary(result.sucesso ?? `${validRows.length} linha(s) importada(s).`);
     router.push(`/obras/${obraId}`);
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+      <div className="cedro-card p-6">
+        <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
           Selecionar planilha
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           Envie um arquivo .xlsx ou .csv com colunas de materiais e mão de obra.
         </p>
 
@@ -155,32 +153,32 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
             type="file"
             accept=".xlsx,.xls,.csv"
             onChange={handleFileChange}
-            className="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-800 dark:text-zinc-300 dark:file:bg-zinc-50 dark:file:text-zinc-900 dark:hover:file:bg-zinc-200"
+            className="block w-full text-sm text-[var(--cedro-text-muted)] file:mr-4 file:rounded-lg file:border-0 file:bg-[var(--cedro-brown)] file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--cedro-brown-hover)]"
           />
           {fileName ? (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">{fileName}</span>
+            <span className="text-sm text-[var(--cedro-text-muted)]">{fileName}</span>
           ) : null}
         </div>
 
         {parsing ? (
-          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-4 text-sm text-[var(--cedro-text-muted)]">
             Lendo planilha...
           </p>
         ) : null}
 
         {parseError ? (
-          <p className="mt-4 text-sm text-red-600 dark:text-red-400">{parseError}</p>
+          <p className="mt-4 text-sm text-[var(--cedro-error)]">{parseError}</p>
         ) : null}
       </div>
 
       {rows.length > 0 ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="cedro-card p-6">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
                 Prévia da importação
               </h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="text-sm text-[var(--cedro-text-muted)]">
                 {rows.length} linha(s) encontrada(s). Revise, edite ou exclua antes de importar.
               </p>
             </div>
@@ -188,15 +186,15 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
               type="button"
               onClick={handleImport}
               disabled={loading}
-              className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="cedro-btn-primary px-4 py-2.5 text-sm"
             >
               {loading ? "Importando..." : "Importar"}
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-              <thead className="bg-zinc-50 dark:bg-zinc-950/50">
+          <div className="cedro-table-wrap">
+            <table className="cedro-table">
+              <thead>
                 <tr>
                   {[
                     "Data",
@@ -212,14 +210,13 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
                     <th
                       key={header || "actions"}
                       scope="col"
-                      className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
                     >
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody>
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td className="px-3 py-3 whitespace-nowrap">
@@ -236,7 +233,7 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
                           Data inválida
                         </p>
                       ) : (
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        <p className="mt-1 text-xs text-[var(--cedro-text-muted)]">
                           {formatDate(row.data_gasto)}
                         </p>
                       )}
@@ -306,7 +303,7 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
                         }
                         className={`${inputClassName} min-w-[110px]`}
                       />
-                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      <p className="mt-1 text-xs text-[var(--cedro-text-muted)]">
                         {formatCurrency(row.valor_total)}
                       </p>
                     </td>
@@ -324,7 +321,7 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
                       <button
                         type="button"
                         onClick={() => removeRow(row.id)}
-                        className="text-sm font-medium text-red-600 transition-colors hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        className="text-sm font-medium text-[var(--cedro-error)] transition-colors hover:text-[var(--cedro-brown-dark)]"
                       >
                         Excluir
                       </button>
@@ -336,11 +333,11 @@ export default function ImportarGastosClient({ obraId }: ImportarGastosClientPro
           </div>
 
           {importError ? (
-            <p className="mt-4 text-sm text-red-600 dark:text-red-400">{importError}</p>
+            <p className="mt-4 text-sm text-[var(--cedro-error)]">{importError}</p>
           ) : null}
 
           {importSummary ? (
-            <p className="mt-4 text-sm text-green-600 dark:text-green-400">
+            <p className="mt-4 text-sm text-[var(--cedro-success)]">
               {importSummary}
             </p>
           ) : null}

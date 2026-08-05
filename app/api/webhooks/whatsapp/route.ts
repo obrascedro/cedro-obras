@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getWhatsAppConfig } from "@/lib/whatsapp/whatsapp-config";
 import { processarMensagemMidiaWhatsApp } from "@/lib/whatsapp/processar-mensagem-whatsapp";
 import {
   extrairMensagensMidia,
   isPayloadWhatsApp,
+  validarAssinaturaWebhookMeta,
   validarVerificacaoWebhook,
   type WhatsAppWebhookPayload,
 } from "@/lib/whatsapp/whatsapp-webhook";
@@ -39,10 +40,31 @@ export async function GET(request: Request) {
 
 /** POST — recebe mensagens do WhatsApp Business Cloud API. */
 export async function POST(request: Request) {
+  const config = getWhatsAppConfig();
+  const rawBody = await request.text();
+
+  if (config.appSecret) {
+    const signature = request.headers.get("x-hub-signature-256");
+    const valido = validarAssinaturaWebhookMeta({
+      rawBody,
+      signatureHeader: signature,
+      appSecret: config.appSecret,
+    });
+
+    if (!valido) {
+      console.error("[WhatsApp] webhook.assinatura_invalida");
+      return NextResponse.json({ error: "Assinatura inválida." }, { status: 401 });
+    }
+  } else {
+    console.warn(
+      "[WhatsApp] WHATSAPP_APP_SECRET não configurado — webhook aceito sem validação HMAC."
+    );
+  }
+
   let payload: WhatsAppWebhookPayload;
 
   try {
-    payload = (await request.json()) as WhatsAppWebhookPayload;
+    payload = JSON.parse(rawBody) as WhatsAppWebhookPayload;
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
@@ -57,7 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "no_media" });
   }
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   for (const mensagem of mensagens) {
     after(async () => {

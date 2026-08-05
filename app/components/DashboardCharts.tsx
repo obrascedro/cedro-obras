@@ -23,22 +23,22 @@ type DashboardChartsProps = {
 };
 
 const CORES_BARRAS = [
-  "#18181b",
-  "#27272a",
-  "#3f3f46",
-  "#52525b",
-  "#71717a",
-  "#a1a1aa",
+  "#8A2E1F",
+  "#6F2117",
+  "#075968",
+  "#064a56",
+  "#D88716",
+  "#157347",
 ];
 
 const CORES_PIZZA = [
-  "#18181b",
-  "#3f3f46",
-  "#52525b",
-  "#71717a",
-  "#a1a1aa",
-  "#d4d4d8",
-  "#27272a",
+  "#8A2E1F",
+  "#075968",
+  "#D88716",
+  "#157347",
+  "#6F2117",
+  "#667085",
+  "#20252B",
 ];
 
 function TooltipEtapa({
@@ -55,9 +55,9 @@ function TooltipEtapa({
   const item = payload[0].payload;
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-      <p className="font-medium text-zinc-900 dark:text-zinc-50">{item.etapa}</p>
-      <p className="text-zinc-600 dark:text-zinc-400">
+    <div className="rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-surface)] px-3 py-2 text-sm shadow-[var(--cedro-shadow-sm)]">
+      <p className="font-medium text-[var(--cedro-text)]">{item.etapa}</p>
+      <p className="text-[var(--cedro-text-muted)]">
         {formatCurrency(item.total)} — {item.percentual}%
       </p>
     </div>
@@ -78,9 +78,9 @@ function TooltipCategoria({
   const item = payload[0].payload;
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-      <p className="font-medium text-zinc-900 dark:text-zinc-50">{item.label}</p>
-      <p className="text-zinc-600 dark:text-zinc-400">
+    <div className="rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-surface)] px-3 py-2 text-sm shadow-[var(--cedro-shadow-sm)]">
+      <p className="font-medium text-[var(--cedro-text)]">{item.label}</p>
+      <p className="text-[var(--cedro-text-muted)]">
         {formatCurrency(item.total)} — {item.percentual ?? 0}%
       </p>
     </div>
@@ -98,16 +98,16 @@ export default function DashboardCharts({
 
   return (
     <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+      <div className="cedro-card p-6">
+        <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
           Gastos por etapa
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           Valor gasto em cada etapa da obra.
         </p>
 
         {gastosPorEtapa.length === 0 ? (
-          <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-6 text-sm text-[var(--cedro-text-muted)]">
             Nenhum gasto cadastrado para exibir.
           </p>
         ) : (
@@ -154,16 +154,16 @@ export default function DashboardCharts({
         )}
       </div>
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+      <div className="cedro-card p-6">
+        <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
           Distribuição dos gastos por categoria
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           Proporção dos gastos por tipo de despesa.
         </p>
 
         {categoriasComPercentual.length === 0 ? (
-          <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-6 text-sm text-[var(--cedro-text-muted)]">
             Nenhum gasto cadastrado para exibir.
           </p>
         ) : (

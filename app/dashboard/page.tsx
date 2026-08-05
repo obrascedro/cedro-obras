@@ -1,8 +1,11 @@
 import Link from "next/link";
 import PageShell from "@/app/components/PageShell";
+import DashboardAcompanhamentoCard from "@/app/components/DashboardAcompanhamentoCard";
 import DashboardCharts from "@/app/components/DashboardCharts";
 import DashboardNotasPendentes from "@/app/components/DashboardNotasPendentes";
-import { supabase } from "@/lib/supabase";
+import MetricCard from "@/app/components/ui/MetricCard";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getAppSession } from "@/lib/auth";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { agruparGastosPorEtapaDetalhado } from "@/lib/gastos-etapa";
 import {
@@ -16,36 +19,17 @@ import {
   type GastoRecente,
   type ObraDashboard,
 } from "@/lib/dashboard";
-
-function SummaryCard({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-        {label}
-      </p>
-      <p
-        className={`mt-2 text-xl font-semibold text-zinc-900 dark:text-zinc-50 sm:text-2xl ${highlight ?? ""}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
+import { obterStatsDashboardAcompanhamento } from "@/lib/acompanhamento-obras/listar";
 
 export default async function DashboardPage() {
+  const session = await getAppSession();
+  const supabase = await createSupabaseServerClient();
   const [
     { data: obras, error: obrasError },
     { data: gastos, error: gastosError },
     { data: gastosRecentes, error: gastosRecentesError },
     { data: notasFiscais, error: notasError },
+    statsAcompanhamento,
   ] = await Promise.all([
     supabase
       .from("obras")
@@ -57,7 +41,9 @@ export default async function DashboardPage() {
       .from("gastos_obra")
       .select(
         "obra_id, etapa, categoria, valor_total, data_gasto, criado_em"
-      ),
+      )
+      .order("criado_em", { ascending: false })
+      .limit(2000),
     supabase
       .from("gastos_obra")
       .select(
@@ -67,7 +53,14 @@ export default async function DashboardPage() {
       .limit(10),
     supabase
       .from("notas_fiscais")
-      .select("status_processamento, valor_total, itens_json"),
+      .select("status_processamento, valor_total, itens_json")
+      .order("criado_em", { ascending: false })
+      .limit(500),
+    obterStatsDashboardAcompanhamento(supabase).catch(() => ({
+      totalUltimos7Dias: 0,
+      ultimaObraNome: null,
+      ultimoFuncionarioNome: null,
+    })),
   ]);
 
   const obrasLista = (obras ?? []) as ObraDashboard[];
@@ -103,78 +96,103 @@ export default async function DashboardPage() {
   const ultimoGastoPorObra = buildUltimoGastoPorObra(gastosLista);
   const alertas = gerarAlertasDashboard(obrasLista, ultimoGastoPorObra);
 
+  const greeting = session?.nome
+    ? `Bem-vindo, ${session.nome}!`
+    : "Bem-vindo!";
+
   return (
     <PageShell
       title="Dashboard"
-      description="Visão geral das obras, gastos e alertas."
+      greeting={greeting}
+      description="Visão geral das obras, gastos e alertas do sistema."
       maxWidth="full"
       action={
-        <Link
-          href="/obras/nova"
-          className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
+        <Link href="/obras/nova" className="cedro-btn-primary px-4 py-2.5 text-sm">
           Nova obra
         </Link>
       }
     >
       <div className="flex flex-col gap-6">
         {obrasError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
             Erro ao carregar obras: {obrasError.message}
           </div>
         ) : null}
 
         {gastosError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
             Erro ao carregar gastos: {gastosError.message}
           </div>
         ) : null}
 
         {gastosRecentesError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
             Erro ao carregar movimentações: {gastosRecentesError.message}
           </div>
         ) : null}
 
         {notasError ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
             Erro ao carregar notas fiscais: {notasError.message}
           </div>
         ) : (
           <DashboardNotasPendentes notas={notasFiscais ?? []} />
         )}
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-          <SummaryCard
+        <DashboardAcompanhamentoCard stats={statsAcompanhamento} />
+
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
             label="Valor contratado"
             value={formatCurrency(valorContratado)}
-          />
-          <SummaryCard
-            label="Valor recebido"
-            value={formatCurrency(totalRecebido)}
-          />
-          <SummaryCard
-            label="Gasto realizado"
-            value={formatCurrency(gastoRealizado)}
-          />
-          <SummaryCard
-            label="Lucro estimado"
-            value={formatCurrency(lucroEstimado)}
-            highlight={
-              lucroEstimado >= 0
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-red-600 dark:text-red-400"
+            iconBg="brown"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m9-4a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             }
           />
-          <SummaryCard label="Número de obras" value={String(totalObras)} />
-          <SummaryCard
-            label="Obras em andamento"
-            value={String(obrasEmAndamento)}
+          <MetricCard
+            label="Valor recebido"
+            value={formatCurrency(totalRecebido)}
+            iconBg="teal"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
           />
-          <SummaryCard
-            label="Obras concluídas"
-            value={String(obrasConcluidas)}
+          <MetricCard
+            label="Gasto realizado"
+            value={formatCurrency(gastoRealizado)}
+            iconBg="orange"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+              </svg>
+            }
           />
+          <MetricCard
+            label="Lucro estimado"
+            value={formatCurrency(lucroEstimado)}
+            iconBg="green"
+            valueClassName={
+              lucroEstimado >= 0
+                ? "text-[var(--cedro-success)]"
+                : "text-[var(--cedro-error)]"
+            }
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            }
+          />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <MetricCard label="Número de obras" value={String(totalObras)} iconBg="brown" />
+          <MetricCard label="Obras em andamento" value={String(obrasEmAndamento)} iconBg="teal" />
+          <MetricCard label="Obras concluídas" value={String(obrasConcluidas)} iconBg="green" />
         </section>
 
         <DashboardCharts
@@ -183,62 +201,55 @@ export default async function DashboardPage() {
         />
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm xl:col-span-2 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          <div className="cedro-card overflow-hidden xl:col-span-2">
+            <div className="border-b border-[var(--cedro-border)] px-6 py-4">
+              <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
                 Últimas movimentações
               </h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
                 Gastos mais recentes cadastrados no sistema.
               </p>
             </div>
 
             {movimentacoes.length === 0 ? (
-              <p className="p-6 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="p-6 text-sm text-[var(--cedro-text-muted)]">
                 Nenhuma movimentação registrada ainda.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                  <thead className="bg-zinc-50 dark:bg-zinc-950/50">
+              <div className="cedro-table-wrap">
+                <table className="cedro-table">
+                  <thead>
                     <tr>
                       {["Data", "Obra", "Descrição", "Etapa", "Valor"].map(
                         (header) => (
-                          <th
-                            key={header}
-                            scope="col"
-                            className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
-                          >
+                          <th key={header} scope="col">
                             {header}
                           </th>
                         )
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  <tbody>
                     {movimentacoes.map((gasto) => (
-                      <tr
-                        key={gasto.id}
-                        className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
-                      >
-                        <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                      <tr key={gasto.id}>
+                        <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                           {formatDate(gasto.data_gasto)}
                         </td>
-                        <td className="px-4 py-4 text-sm whitespace-nowrap">
+                        <td className="whitespace-nowrap">
                           <Link
                             href={`/obras/${gasto.obra_id}`}
-                            className="font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-50"
+                            className="font-medium text-[var(--cedro-brown)] underline-offset-4 hover:underline"
                           >
                             {getObraNome(gasto.obras)}
                           </Link>
                         </td>
-                        <td className="px-4 py-4 text-sm text-zinc-600 dark:text-zinc-300">
+                        <td className="text-[var(--cedro-text-muted)]">
                           {gasto.descricao}
                         </td>
-                        <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                        <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                           {gasto.etapa || "—"}
                         </td>
-                        <td className="px-4 py-4 text-sm font-medium whitespace-nowrap text-zinc-900 dark:text-zinc-50">
+                        <td className="whitespace-nowrap font-medium">
                           {formatCurrency(gasto.valor_total ?? 0)}
                         </td>
                       </tr>
@@ -249,16 +260,16 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          <div className="cedro-card p-6">
+            <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
               Alertas
             </h2>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
               Obras que precisam de atenção.
             </p>
 
             {alertas.length === 0 ? (
-              <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-4 text-sm text-[var(--cedro-text-muted)]">
                 Nenhum alerta no momento.
               </p>
             ) : (

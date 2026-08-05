@@ -1,10 +1,13 @@
 import Link from "next/link";
 import PageShell from "@/app/components/PageShell";
 import NotasFiscaisClient from "@/app/components/NotasFiscaisClient";
-import { supabase } from "@/lib/supabase";
+import { getAppSession } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type { NotaFiscal, ObraOption } from "@/lib/notas-fiscais";
 
 export default async function NotasFiscaisPage() {
+  const session = await getAppSession();
+  const supabase = await createSupabaseServerClient();
   const [
     { data: obras, error: obrasError },
     { data: notas, error: notasError },
@@ -15,7 +18,8 @@ export default async function NotasFiscaisPage() {
       .select(
         "id, obra_id, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, fornecedor, data_nota, valor_total, observacoes, origem, status_processamento, criado_em, enviado_por_nome, aprovado_por_nome, aprovado_em, rejeitado_por_nome, motivo_rejeicao, mensagem_correcao, leitura_json, itens_json, obras(nome)"
       )
-      .order("criado_em", { ascending: false }),
+      .order("criado_em", { ascending: false })
+      .limit(200),
   ]);
 
   return (
@@ -54,6 +58,7 @@ export default async function NotasFiscaisPage() {
       <NotasFiscaisClient
         obras={(obras ?? []) as ObraOption[]}
         notasIniciais={(notas ?? []) as NotaFiscal[]}
+        adminNome={session?.nome ?? "Administrador"}
       />
     </PageShell>
   );

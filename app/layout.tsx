@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 import "./globals.css";
@@ -14,8 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: APP_NAME,
+  title: {
+    default: APP_NAME,
+    template: `%s — ${APP_NAME}`,
+  },
   description: APP_TAGLINE,
+};
+
+export const viewport: Viewport = {
+  themeColor: "#8A2E1F",
 };
 
 export default function RootLayout({

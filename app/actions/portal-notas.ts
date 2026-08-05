@@ -1,35 +1,21 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { processarNotaFiscalComIA } from "@/lib/nota-fiscal-processar";
 import {
   marcarNotaFiscalErroServer,
   atualizarStatusNotaFiscalServer,
 } from "@/lib/notas-fiscais-db-server";
-import {
-  assertPortalNotasConfigured,
-  PORTAL_NOTAS_COOKIE,
-  PORTAL_NOTAS_MSG,
-} from "@/lib/portal-notas/config";
+import { requirePortalSession } from "@/lib/auth";
+import { auditarNotaEnviada } from "@/lib/audit-helpers";
 import { buscarFuncionarioPortalPorId } from "@/lib/portal-notas/funcionarios";
-import {
-  limparRateLimitExpirado,
-  verificarRateLimitPortal,
-} from "@/lib/portal-notas/rate-limit";
+import { verificarRateLimit, limparRateLimitMemoriaExpirado } from "@/lib/rate-limit-store";
+import { PORTAL_NOTAS_RATE_LIMIT } from "@/lib/portal-notas/config";
 import { salvarNotaPortalNoStorage } from "@/lib/portal-notas/salvar-nota";
-import {
-  criarTokenSessaoPortal,
-  exigirSessaoPortalNotas,
-  opcoesCookiePortalNotas,
-  validarSenhaPortal,
-} from "@/lib/portal-notas/session";
 import { lerBufferArquivoPortal } from "@/lib/portal-notas/validar-arquivo";
-
-export type PortalNotasLoginState = {
-  erro?: string;
-};
+import { funcionarioPodeEnviarNotaParaObra } from "@/lib/portal-notas/obras-funcionario";
 
 export type PortalNotasEnvioResultado = {
   ok: true;
@@ -44,129 +30,99 @@ export type PortalNotasEnvioState = {
   sucesso?: PortalNotasEnvioResultado;
 };
 
-async function obterChaveRateLimit(): Promise<string> {
+async function obterChaveRateLimit(userId?: string): Promise<string> {
   const hdrs = await headers();
   const forwarded = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim();
   const ip = forwarded || hdrs.get("x-real-ip") || "local";
-  try {
-    const sessao = await exigirSessaoPortalNotas();
-    return `${ip}:${sessao.funcionarioId}`;
-  } catch {
-    return ip;
-  }
-}
-
-function aplicarRateLimit(): void {
-  limparRateLimitExpirado();
+  return userId ? `${ip}:${userId}` : ip;
 }
 
 function formatarReferenciaNota(id: string): string {
   return id.slice(0, 8).toUpperCase();
 }
 
-export async function portalNotasLoginAction(
-  _prev: PortalNotasLoginState,
-  formData: FormData
-): Promise<PortalNotasLoginState> {
-  aplicarRateLimit();
-  const rate = verificarRateLimitPortal(`login:${await obterChaveRateLimit()}`);
-  if (!rate.permitido) {
-    return {
-      erro: `Muitas tentativas. Aguarde ${rate.retryAfterSec ?? 60} segundos.`,
-    };
-  }
-
-  let secret: string;
-  try {
-    secret = assertPortalNotasConfigured();
-  } catch (error) {
-    return {
-      erro:
-        error instanceof Error
-          ? error.message
-          : "Portal indisponível no momento.",
-    };
-  }
-
-  const funcionarioId = String(formData.get("funcionarioId") ?? "").trim();
-  const senha = String(formData.get("senha") ?? "");
-
-  if (!funcionarioId) {
-    return { erro: PORTAL_NOTAS_MSG.funcionarioNaoAutorizado };
-  }
-
-  const supabase = createSupabaseServerClient();
-  const funcionario = await buscarFuncionarioPortalPorId(
-    supabase,
-    funcionarioId
-  );
-
-  if (!funcionario) {
-    return { erro: PORTAL_NOTAS_MSG.funcionarioNaoAutorizado };
-  }
-
-  if (!validarSenhaPortal(senha, secret)) {
-    return { erro: PORTAL_NOTAS_MSG.senhaInvalida };
-  }
-
-  const token = criarTokenSessaoPortal(
-    { funcionarioId: funcionario.id, nome: funcionario.nome },
-    secret
-  );
-  const cookieStore = await cookies();
-  cookieStore.set(PORTAL_NOTAS_COOKIE, token, opcoesCookiePortalNotas());
-
-  redirect("/portal/notas");
-}
-
-export async function portalNotasLogoutAction(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set(PORTAL_NOTAS_COOKIE, "", {
-    ...opcoesCookiePortalNotas(),
-    maxAge: 0,
-  });
-  redirect("/portal/notas");
+function revalidarRotasPortalNotas() {
+  revalidatePath("/portal/notas");
+  revalidatePath("/portal/minhas-notas");
+  revalidatePath("/financeiro/notas-fiscais");
+  revalidatePath("/dashboard");
 }
 
 export async function portalNotasEnviarAction(
   _prev: PortalNotasEnvioState,
   formData: FormData
 ): Promise<PortalNotasEnvioState> {
-  aplicarRateLimit();
-  const rate = verificarRateLimitPortal(`envio:${await obterChaveRateLimit()}`);
+  let session;
+  try {
+    session = await requirePortalSession();
+  } catch (error) {
+    return {
+      erro:
+        error instanceof Error
+          ? error.message
+          : "Sessão expirada. Faça login novamente.",
+    };
+  }
+
+  limparRateLimitMemoriaExpirado();
+  const rate = await verificarRateLimit(
+    `portal:envio:${await obterChaveRateLimit(session.userId)}`,
+    PORTAL_NOTAS_RATE_LIMIT
+  );
   if (!rate.permitido) {
     return {
       erro: `Limite de envios atingido. Aguarde ${rate.retryAfterSec ?? 60}s.`,
     };
   }
 
-  let sessao;
-  try {
-    sessao = await exigirSessaoPortalNotas();
-  } catch {
-    return { erro: "Sessão expirada. Faça login novamente." };
-  }
+  const supabase = await createSupabaseServerClient();
 
-  const supabase = createSupabaseServerClient();
-  const funcionario = await buscarFuncionarioPortalPorId(
-    supabase,
-    sessao.funcionarioId
-  );
+  const funcionarioId = session.funcionario_id;
+  let enviadoPorNome = session.nome;
 
-  if (!funcionario) {
-    return { erro: "Sessão inválida. Faça login novamente." };
+  if (session.role === "funcionario") {
+    if (!funcionarioId) {
+      return { erro: "Perfil de funcionário incompleto." };
+    }
+
+    const funcionario = await buscarFuncionarioPortalPorId(
+      supabase,
+      funcionarioId
+    );
+
+    if (!funcionario) {
+      return { erro: "Funcionário não autorizado." };
+    }
+
+    enviadoPorNome = funcionario.nome;
+  } else if (!funcionarioId) {
+    return {
+      erro: "Envio pelo portal disponível apenas para funcionários.",
+    };
   }
 
   const obraId = String(formData.get("obraId") ?? "").trim();
   const observacoes = String(formData.get("observacoes") ?? "").trim();
   const arquivo = formData.get("arquivo");
 
+  console.info("[portal-notas] envio.inicio", {
+    userId: session.userId,
+    funcionarioId,
+    obraId,
+    arquivoRecebido: arquivo instanceof File,
+    tamanho: arquivo instanceof File ? arquivo.size : 0,
+    tipo: arquivo instanceof File ? arquivo.type : null,
+  });
+
   if (!obraId) {
     return { erro: "Selecione a obra." };
   }
 
-  if (!(arquivo instanceof File)) {
-    return { erro: "Selecione ou tire uma foto da nota." };
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return {
+      erro:
+        "Não foi possível ler o arquivo enviado. Selecione a foto novamente e tente outra vez.",
+    };
   }
 
   const { data: obra, error: obraError } = await supabase
@@ -179,10 +135,24 @@ export async function portalNotasEnviarAction(
     return { erro: "Obra não encontrada." };
   }
 
+  if (funcionarioId) {
+    const autorizado = await funcionarioPodeEnviarNotaParaObra(
+      supabase,
+      funcionarioId,
+      obraId
+    );
+    if (!autorizado) {
+      return { erro: "Você não está autorizado a enviar notas para esta obra." };
+    }
+  }
+
   let arquivoValidado;
   try {
     arquivoValidado = await lerBufferArquivoPortal(arquivo);
   } catch (error) {
+    console.error("[portal-notas] arquivo.invalido", {
+      message: error instanceof Error ? error.message : "erro",
+    });
     return {
       erro: error instanceof Error ? error.message : "Arquivo inválido.",
     };
@@ -195,13 +165,19 @@ export async function portalNotasEnviarAction(
     const salvo = await salvarNotaPortalNoStorage(supabase, {
       obraId,
       arquivo: arquivoValidado,
-      enviadoPorNome: funcionario.nome,
-      funcionarioId: funcionario.id,
+      enviadoPorNome,
+      funcionarioId: funcionarioId!,
+      authUserId: session.userId,
       observacoes: observacoes || undefined,
     });
 
     notaId = salvo.notaId;
     storagePath = salvo.storagePath;
+
+    console.info("[portal-notas] storage.insert.ok", {
+      notaId,
+      tamanho: arquivoValidado.fileSize,
+    });
 
     await atualizarStatusNotaFiscalServer(supabase, notaId, "processando");
 
@@ -211,8 +187,14 @@ export async function portalNotasEnviarAction(
       fileName: arquivoValidado.fileName,
       notaId,
       observacoes: observacoes || undefined,
-      enviadoPorNome: funcionario.nome,
+      enviadoPorNome,
     });
+
+    console.info("[portal-notas] ia.ok", { notaId });
+
+    await auditarNotaEnviada(session, notaId);
+
+    revalidarRotasPortalNotas();
 
     return {
       sucesso: {
@@ -226,6 +208,11 @@ export async function portalNotasEnviarAction(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erro ao enviar a nota.";
+
+    console.error("[portal-notas] envio.falhou", {
+      notaId,
+      message,
+    });
 
     if (notaId) {
       await marcarNotaFiscalErroServer(supabase, notaId, message);

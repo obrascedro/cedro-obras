@@ -163,7 +163,7 @@ export function responderGastoEtapa(
     "categoria"
   );
 
-  let indicadores: IndicadorAssistente[] = [];
+  const indicadores: IndicadorAssistente[] = [];
   if (obra && obra.orcamento_previsto > 0) {
     const pct = Math.round((total / obra.orcamento_previsto) * 100);
     if (pct >= 90) {

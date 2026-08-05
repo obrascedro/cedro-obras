@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertAdminApi } from "@/lib/auth-api";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { processarNotaFiscalComIA } from "@/lib/nota-fiscal-processar";
 import { logNotaFiscalError } from "@/lib/nota-fiscal-log";
@@ -16,6 +17,9 @@ type LerNotaBody = {
 };
 
 export async function POST(request: Request) {
+  const denied = await assertAdminApi();
+  if (denied) return denied;
+
   let notaId: string | undefined;
 
   try {
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
 
     const { leitura, alertas } = await processarNotaFiscalComIA(supabase, {
       storagePath,
@@ -48,16 +52,16 @@ export async function POST(request: Request) {
   } catch (error) {
     logNotaFiscalError("api.ler.erro", error, { notaId });
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Erro ao processar a nota fiscal com IA.";
-
     if (notaId) {
-      const supabase = createSupabaseServerClient();
-      await marcarNotaFiscalErroServer(supabase, notaId, message);
+      const supabase = await createSupabaseServerClient();
+      const detail =
+        error instanceof Error ? error.message : "Erro desconhecido";
+      await marcarNotaFiscalErroServer(supabase, notaId, detail);
     }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Não foi possível processar a nota fiscal." },
+      { status: 500 }
+    );
   }
 }

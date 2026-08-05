@@ -9,7 +9,7 @@ import {
 } from "@/app/actions/notas-fiscais-aprovacao";
 import NotaFiscalCamposForm from "@/app/components/notas-fiscais/NotaFiscalCamposForm";
 import NotaFiscalLeituraPreview from "@/app/components/notas-fiscais/NotaFiscalLeituraPreview";
-import { formatCurrency, formatDate, parseNumber } from "@/lib/format";
+import { formatCurrency, parseNumber } from "@/lib/format";
 import {
   criarItemVazio,
   syncItemTotal,
@@ -20,19 +20,15 @@ import {
   getObraNomeNota,
   formatOrigemNota,
   isPendenteAprovacao,
-  NOTAS_FISCAIS_BUCKET,
   type NotaFiscal,
   type ObraOption,
 } from "@/lib/notas-fiscais";
-import type { PerfilNotaFiscal } from "@/lib/nota-fiscal-perfil";
-import { supabase } from "@/lib/supabase";
-import { salvarClassificacaoAprendida } from "@/lib/nota-fiscal-classificacao-aprendida";
+import { obterUrlArquivoNotaAdminAction } from "@/app/actions/notas-fiscais-admin";
 
 type PendenciasAprovacaoProps = {
   notas: NotaFiscal[];
   obras: ObraOption[];
-  perfil: PerfilNotaFiscal;
-  usuarioNome: string;
+  adminNome: string;
 };
 
 function parseItens(nota: NotaFiscal): NotaFiscalItemExtraido[] {
@@ -46,8 +42,7 @@ function parseItens(nota: NotaFiscal): NotaFiscalItemExtraido[] {
 export default function PendenciasAprovacao({
   notas,
   obras,
-  perfil,
-  usuarioNome,
+  adminNome,
 }: PendenciasAprovacaoProps) {
   const router = useRouter();
   const pendencias = useMemo(
@@ -66,8 +61,6 @@ export default function PendenciasAprovacao({
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
-
-  if (perfil !== "aprovador") return null;
 
   function abrirNota(nota: NotaFiscal) {
     setNotaAberta(nota);
@@ -122,23 +115,8 @@ export default function PendenciasAprovacao({
         valorTotal,
         observacoes,
         itens,
-        aprovadorNome: usuarioNome,
-        perfil,
+        aprovadorNome: adminNome,
       });
-
-      for (const item of itens) {
-        if (item.revisado_pelo_usuario && item.descricao.trim()) {
-          try {
-            await salvarClassificacaoAprendida(
-              item.descricao,
-              item.categoria,
-              item.etapa
-            );
-          } catch {
-            // silencioso
-          }
-        }
-      }
 
       setSucesso("Nota aprovada e gastos lançados.");
       fecharNota();
@@ -161,8 +139,7 @@ export default function PendenciasAprovacao({
       await rejeitarNotaFiscalAction({
         notaId: notaAberta.id,
         motivo,
-        rejeitadoPorNome: usuarioNome,
-        perfil,
+        rejeitadoPorNome: adminNome,
       });
       fecharNota();
       router.refresh();
@@ -184,8 +161,7 @@ export default function PendenciasAprovacao({
       await solicitarCorrecaoNotaFiscalAction({
         notaId: notaAberta.id,
         mensagem,
-        solicitadoPorNome: usuarioNome,
-        perfil,
+        solicitadoPorNome: adminNome,
       });
       fecharNota();
       router.refresh();
@@ -197,11 +173,9 @@ export default function PendenciasAprovacao({
   }
 
   async function abrirArquivo(nota: NotaFiscal) {
-    const { data } = await supabase.storage
-      .from(NOTAS_FISCAIS_BUCKET)
-      .createSignedUrl(nota.arquivo_path, 3600);
-    if (data?.signedUrl) {
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const result = await obterUrlArquivoNotaAdminAction(nota.arquivo_path);
+    if ("url" in result) {
+      window.open(result.url, "_blank", "noopener,noreferrer");
     }
   }
 
@@ -210,22 +184,22 @@ export default function PendenciasAprovacao({
     : null;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm dark:border-amber-900/50 dark:bg-zinc-900">
-      <div className="border-b border-amber-200/80 bg-amber-50/50 px-6 py-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+    <section className="cedro-card overflow-hidden border-[var(--cedro-warning-border)]">
+      <div className="border-b border-[var(--cedro-warning-border)] bg-[var(--cedro-warning-bg)] px-6 py-4">
+        <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
           Pendências para aprovação
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           {pendencias.length} nota(s) aguardando conferência do aprovador.
         </p>
       </div>
 
       {pendencias.length === 0 ? (
-        <p className="p-6 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="p-6 text-sm text-[var(--cedro-text-muted)]">
           Nenhuma nota pendente de aprovação.
         </p>
       ) : (
-        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <ul className="divide-y divide-[var(--cedro-border)]">
           {pendencias.map((nota) => {
             const itensNota = parseItens(nota);
             const alertas = calcularAlertasNota(nota.valor_total ?? 0, itensNota);
@@ -235,16 +209,16 @@ export default function PendenciasAprovacao({
                 className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="font-medium text-zinc-900 dark:text-zinc-50">
+                  <p className="font-medium text-[var(--cedro-text)]">
                     {nota.fornecedor ?? "Sem fornecedor"} —{" "}
                     {formatCurrency(nota.valor_total ?? 0)}
                   </p>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
                     {getObraNomeNota(nota.obras)} ·{" "}
                     {formatOrigemNota(nota.origem)} ·{" "}
                     {new Date(nota.criado_em).toLocaleString("pt-BR")}
                   </p>
-                  <p className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  <p className="mt-1 text-sm font-medium text-[var(--cedro-text)]">
                     Enviado por: {nota.enviado_por_nome ?? "—"}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
@@ -264,14 +238,14 @@ export default function PendenciasAprovacao({
                   <button
                     type="button"
                     onClick={() => void abrirArquivo(nota)}
-                    className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    className="cedro-btn-secondary px-3 py-2 text-sm"
                   >
                     Ver arquivo
                   </button>
                   <button
                     type="button"
                     onClick={() => abrirNota(nota)}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                    className="cedro-btn-primary px-3 py-2 text-sm"
                   >
                     Conferir
                   </button>
@@ -283,7 +257,7 @@ export default function PendenciasAprovacao({
       )}
 
       {notaAberta ? (
-        <div className="border-t border-zinc-200 p-6 dark:border-zinc-800">
+        <div className="border-t border-[var(--cedro-border)] p-6">
           <NotaFiscalCamposForm
             obras={obras}
             obraId={obraId}
@@ -330,10 +304,10 @@ export default function PendenciasAprovacao({
           />
 
           {erro ? (
-            <p className="mt-3 text-sm text-red-600 dark:text-red-400">{erro}</p>
+            <p className="mt-3 text-sm text-[var(--cedro-error)]">{erro}</p>
           ) : null}
           {sucesso ? (
-            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
+            <p className="mt-3 text-sm text-[var(--cedro-success)]">
               {sucesso}
             </p>
           ) : null}

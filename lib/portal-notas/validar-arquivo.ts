@@ -3,6 +3,11 @@ import {
   NOTAS_FISCAIS_ACCEPTED_TYPES,
   NOTAS_FISCAIS_MAX_SIZE_BYTES,
 } from "@/lib/notas-fiscais";
+import {
+  isHeicFile,
+  MSG_FORMATO_HEIC,
+  MSG_FORMATO_NAO_SUPORTADO,
+} from "@/lib/portal-notas/formatos-arquivo";
 
 const EXT_POR_MIME: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -49,6 +54,10 @@ export function validarArquivoPortalNotas(
     throw new Error("Selecione um arquivo para enviar.");
   }
 
+  if (isHeicFile(file)) {
+    throw new Error(MSG_FORMATO_HEIC);
+  }
+
   if (file.size > NOTAS_FISCAIS_MAX_SIZE_BYTES) {
     throw new Error("Arquivo excede o limite de 10 MB.");
   }
@@ -71,9 +80,7 @@ export function validarArquivoPortalNotas(
       mimeType as (typeof NOTAS_FISCAIS_ACCEPTED_TYPES)[number]
     )
   ) {
-    throw new Error(
-      "Tipo de arquivo não permitido. Use JPG, PNG, WEBP ou PDF."
-    );
+    throw new Error(MSG_FORMATO_NAO_SUPORTADO);
   }
 
   const extEsperada = EXT_POR_MIME[mimeType];

@@ -1,6 +1,7 @@
 "use server";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { requireAdminSession } from "@/lib/auth";
 import { processarPerguntaEngenheiroCedro } from "@/lib/engenheiro-cedro-resposta";
 import type {
   ConversaAssistente,
@@ -15,22 +16,90 @@ export type EnviarMensagemResultado = {
   mensagemAssistente: MensagemAssistente;
 };
 
+export type StorageAssistenteStatus = {
+  disponivel: boolean;
+  aviso?: string;
+};
+
+const AVISO_TABELA_INEXISTENTE =
+  "O histórico de conversas ainda não está configurado no banco. Execute supabase/assistente-conversas.sql no SQL Editor do Supabase para habilitar o salvamento.";
+
+function erroTabelaAssistenteInexistente(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("assistente_conversas") &&
+    (m.includes("schema cache") ||
+      m.includes("does not exist") ||
+      m.includes("could not find"))
+  );
+}
+
+function erroStorageAssistente(error: { message: string } | null): boolean {
+  return Boolean(error && erroTabelaAssistenteInexistente(error.message));
+}
+
 function gerarTituloConversa(pergunta: string): string {
   const limpa = pergunta.trim().replace(/\s+/g, " ");
   return limpa.length > 60 ? `${limpa.slice(0, 57)}...` : limpa;
 }
 
+export async function obterStatusStorageAssistente(): Promise<StorageAssistenteStatus> {
+  try {
+    await requireAdminSession();
+  } catch {
+    return { disponivel: false };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("assistente_conversas")
+    .select("id")
+    .limit(1);
+
+  if (erroStorageAssistente(error)) {
+    return { disponivel: false, aviso: AVISO_TABELA_INEXISTENTE };
+  }
+
+  if (error) {
+    console.error("[EngenheiroCedro] obterStatusStorage:", error.message);
+    return { disponivel: false, aviso: "Não foi possível verificar o histórico de conversas." };
+  }
+
+  return { disponivel: true };
+}
+
+async function assertConversaDoUsuario(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  conversaId: string,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("assistente_conversas")
+    .select("id")
+    .eq("id", conversaId)
+    .or(`usuario_id.eq.${userId},usuario_id.is.null`)
+    .maybeSingle();
+
+  if (erroStorageAssistente(error)) return false;
+
+  return Boolean(data);
+}
+
 export async function listarConversasEngenheiroCedro(): Promise<ConversaAssistente[]> {
-  const supabase = createSupabaseServerClient();
+  const session = await requireAdminSession();
+  const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
     .from("assistente_conversas")
     .select("id, titulo, obra_id, criado_em, atualizado_em")
+    .or(`usuario_id.eq.${session.userId},usuario_id.is.null`)
     .order("atualizado_em", { ascending: false })
     .limit(30);
 
   if (error) {
-    console.error("[EngenheiroCedro] listarConversas:", error.message);
+    if (!erroStorageAssistente(error)) {
+      console.error("[EngenheiroCedro] listarConversas:", error.message);
+    }
     return [];
   }
 
@@ -40,7 +109,15 @@ export async function listarConversasEngenheiroCedro(): Promise<ConversaAssisten
 export async function carregarMensagensConversa(
   conversaId: string
 ): Promise<MensagemAssistente[]> {
-  const supabase = createSupabaseServerClient();
+  const session = await requireAdminSession();
+  const supabase = await createSupabaseServerClient();
+
+  const permitido = await assertConversaDoUsuario(
+    supabase,
+    conversaId,
+    session.userId
+  );
+  if (!permitido) return [];
 
   const { data, error } = await supabase
     .from("assistente_mensagens")
@@ -49,7 +126,9 @@ export async function carregarMensagensConversa(
     .order("criado_em", { ascending: true });
 
   if (error) {
-    console.error("[EngenheiroCedro] carregarMensagens:", error.message);
+    if (!erroStorageAssistente(error)) {
+      console.error("[EngenheiroCedro] carregarMensagens:", error.message);
+    }
     return [];
   }
 
@@ -59,18 +138,23 @@ export async function carregarMensagensConversa(
 export async function criarConversaEngenheiroCedro(
   obraId?: string | null
 ): Promise<ConversaAssistente | null> {
-  const supabase = createSupabaseServerClient();
+  const session = await requireAdminSession();
+  const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
     .from("assistente_conversas")
     .insert({
       titulo: "Nova conversa",
       obra_id: obraId ?? null,
+      usuario_id: session.userId,
     })
     .select("id, titulo, obra_id, criado_em, atualizado_em")
     .single();
 
   if (error) {
+    if (erroStorageAssistente(error)) {
+      throw new Error(AVISO_TABELA_INEXISTENTE);
+    }
     console.error("[EngenheiroCedro] criarConversa:", error.message);
     return null;
   }
@@ -81,12 +165,22 @@ export async function criarConversaEngenheiroCedro(
 export async function excluirConversaEngenheiroCedro(
   conversaId: string
 ): Promise<boolean> {
-  const supabase = createSupabaseServerClient();
+  const session = await requireAdminSession();
+  const supabase = await createSupabaseServerClient();
+
+  const permitido = await assertConversaDoUsuario(
+    supabase,
+    conversaId,
+    session.userId
+  );
+  if (!permitido) return false;
 
   const { error } = await supabase
     .from("assistente_conversas")
     .delete()
     .eq("id", conversaId);
+
+  if (erroStorageAssistente(error)) return false;
 
   return !error;
 }
@@ -96,13 +190,30 @@ export async function enviarMensagemEngenheiroCedro(
   conversaId?: string | null,
   obraId?: string | null
 ): Promise<EnviarMensagemResultado> {
+  const session = await requireAdminSession();
   const texto = pergunta.trim();
   if (!texto) {
     throw new Error("Digite uma pergunta.");
   }
 
-  const supabase = createSupabaseServerClient();
+  const storage = await obterStatusStorageAssistente();
+  if (!storage.disponivel) {
+    throw new Error(storage.aviso ?? AVISO_TABELA_INEXISTENTE);
+  }
+
+  const supabase = await createSupabaseServerClient();
   let conversaAtualId = conversaId ?? null;
+
+  if (conversaAtualId) {
+    const permitido = await assertConversaDoUsuario(
+      supabase,
+      conversaAtualId,
+      session.userId
+    );
+    if (!permitido) {
+      throw new Error("Conversa não encontrada ou sem permissão.");
+    }
+  }
 
   if (!conversaAtualId) {
     const nova = await criarConversaEngenheiroCedro(obraId);
@@ -127,6 +238,9 @@ export async function enviarMensagemEngenheiroCedro(
     .single();
 
   if (errUsuario || !msgUsuario) {
+    if (erroStorageAssistente(errUsuario)) {
+      throw new Error(AVISO_TABELA_INEXISTENTE);
+    }
     throw new Error(errUsuario?.message ?? "Erro ao salvar pergunta.");
   }
 
@@ -151,6 +265,9 @@ export async function enviarMensagemEngenheiroCedro(
     .single();
 
   if (errAssistente || !msgAssistente) {
+    if (erroStorageAssistente(errAssistente)) {
+      throw new Error(AVISO_TABELA_INEXISTENTE);
+    }
     throw new Error(errAssistente?.message ?? "Erro ao salvar resposta.");
   }
 
@@ -159,6 +276,7 @@ export async function enviarMensagemEngenheiroCedro(
     .update({
       titulo: gerarTituloConversa(texto),
       obra_id: obraId ?? null,
+      usuario_id: session.userId,
       atualizado_em: new Date().toISOString(),
     })
     .eq("id", conversaAtualId);

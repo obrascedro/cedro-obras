@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { getPortalNotasAccessCode } from "@/lib/portal-notas/config";
-import { listarFuncionariosPortalAtivos } from "@/lib/portal-notas/funcionarios";
-import { obterSessaoPortalNotas } from "@/lib/portal-notas/session";
-import PortalNotasApp from "@/app/components/portal-notas/PortalNotasApp";
-import PortalNotasLogin from "@/app/components/portal-notas/PortalNotasLogin";
-import type { ObraOption } from "@/lib/notas-fiscais";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import PortalNotasLoading from "@/app/components/portal-notas/PortalNotasLoading";
+import PortalNotasObrasSection from "@/app/components/portal-notas/PortalNotasObrasSection";
+import PortalPageLayout from "@/app/components/portal-notas/PortalPageLayout";
+import PortalWarningBanner from "@/app/components/portal-notas/PortalWarningBanner";
+import { getAppSession, LOGIN_PATH } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Portal de Notas — Cedro Obras",
+  title: "Portal de Notas — Cedro Projetos e Construções",
   description: "Envio de notas fiscais pelos funcionários",
   robots: { index: false, follow: false },
 };
@@ -16,37 +16,43 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PortalNotasPage() {
-  const configurado = Boolean(getPortalNotasAccessCode());
-  const sessao = configurado ? await obterSessaoPortalNotas() : null;
+  const session = await getAppSession();
 
-  if (!configurado) {
+  if (!session) {
+    redirect(LOGIN_PATH);
+  }
+
+  if (session.role === "funcionario" && !session.funcionario_id) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-8">
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Portal indisponível. O administrador precisa configurar{" "}
-          <code className="font-mono">PORTAL_NOTAS_ACCESS_CODE</code> no
-          servidor.
-        </p>
-      </main>
+      <PortalPageLayout
+        nomeFuncionario={session.nome}
+        activePath="/portal/notas"
+        alert={
+          <PortalWarningBanner
+            title="Perfil incompleto."
+            description="Peça ao administrador para vincular sua conta ao cadastro de funcionário."
+          />
+        }
+      >
+        <div />
+      </PortalPageLayout>
     );
   }
 
-  if (!sessao) {
-    const supabase = createSupabaseServerClient();
-    const funcionarios = await listarFuncionariosPortalAtivos(supabase);
-    return <PortalNotasLogin funcionarios={funcionarios} />;
-  }
-
-  const supabase = createSupabaseServerClient();
-  const { data: obras } = await supabase
-    .from("obras")
-    .select("id, nome")
-    .order("nome");
+  const funcionarioId = session.funcionario_id;
 
   return (
-    <PortalNotasApp
-      nomeFuncionario={sessao.nome}
-      obras={(obras ?? []) as ObraOption[]}
-    />
+    <PortalPageLayout
+      nomeFuncionario={session.nome}
+      activePath="/portal/notas"
+    >
+      {funcionarioId ? (
+        <Suspense fallback={<PortalNotasLoading />}>
+          <PortalNotasObrasSection funcionarioId={funcionarioId} />
+        </Suspense>
+      ) : (
+        <PortalNotasObrasSection funcionarioId="" />
+      )}
+    </PortalPageLayout>
   );
 }

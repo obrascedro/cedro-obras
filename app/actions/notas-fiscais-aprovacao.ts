@@ -1,5 +1,12 @@
 "use server";
 
+import { requireAdminSession } from "@/lib/auth";
+import {
+  auditarNotaAprovada,
+  auditarNotaCorrecaoSolicitada,
+  auditarNotaPendencia,
+  auditarNotaRejeitada,
+} from "@/lib/audit-helpers";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import {
   aprovarNotaFiscalServer,
@@ -7,14 +14,48 @@ import {
   salvarPendenciaNotaFiscalServer,
   solicitarCorrecaoNotaFiscalServer,
 } from "@/lib/aprovar-nota-fiscal";
-import type { PerfilNotaFiscal } from "@/lib/nota-fiscal-perfil";
-import { podeAprovarNotas } from "@/lib/nota-fiscal-perfil";
 import type { NotaFiscalItemExtraido } from "@/lib/nota-fiscal-ia";
+import {
+  formatReferenciaAuditoria,
+  registrarAuditoriaSessao,
+} from "@/lib/audit-log";
 
-function assertAprovador(perfil: PerfilNotaFiscal) {
-  if (!podeAprovarNotas(perfil)) {
-    throw new Error("Apenas aprovadores podem executar esta ação.");
-  }
+type NotaAntes = {
+  obra_id: string | null;
+  fornecedor: string | null;
+  valor_total: number | null;
+  status_processamento: string | null;
+  itens_json: unknown;
+};
+
+async function buscarNotaAntes(
+  notaId: string
+): Promise<NotaAntes | null> {
+  const client = await createSupabaseServerClient();
+  const { data } = await client
+    .from("notas_fiscais")
+    .select(
+      "obra_id, fornecedor, valor_total, status_processamento, itens_json"
+    )
+    .eq("id", notaId)
+    .maybeSingle();
+  return data;
+}
+
+function categoriasAlteradas(
+  antes: unknown,
+  depois: NotaFiscalItemExtraido[]
+): boolean {
+  const extrair = (items: unknown) => {
+    if (!Array.isArray(items)) return "";
+    return items
+      .map((item) => {
+        const row = item as { categoria?: string };
+        return row.categoria?.trim() ?? "";
+      })
+      .join("|");
+  };
+  return extrair(antes) !== extrair(depois);
 }
 
 export async function aprovarNotaFiscalAction(params: {
@@ -27,12 +68,13 @@ export async function aprovarNotaFiscalAction(params: {
   observacoes?: string;
   itens: NotaFiscalItemExtraido[];
   aprovadorNome: string;
-  perfil: PerfilNotaFiscal;
 }) {
-  assertAprovador(params.perfil);
+  const session = await requireAdminSession();
 
-  const client = createSupabaseServerClient();
-  return aprovarNotaFiscalServer(client, {
+  const client = await createSupabaseServerClient();
+  const antes = await buscarNotaAntes(params.notaId);
+
+  const result = await aprovarNotaFiscalServer(client, {
     notaId: params.notaId,
     obraId: params.obraId,
     fornecedor: params.fornecedor,
@@ -41,8 +83,28 @@ export async function aprovarNotaFiscalAction(params: {
     valorTotal: params.valorTotal,
     observacoes: params.observacoes,
     itens: params.itens,
-    aprovadorNome: params.aprovadorNome,
+    aprovadorNome: params.aprovadorNome || session.nome,
+    aprovadorId: session.userId,
   });
+
+  await auditarNotaAprovada(session, params.notaId, antes, {
+    obraId: params.obraId,
+    fornecedor: params.fornecedor,
+    valorTotal: params.valorTotal,
+  });
+
+  if (categoriasAlteradas(antes?.itens_json, params.itens)) {
+    const ref = formatReferenciaAuditoria(params.notaId);
+    await registrarAuditoriaSessao(session, {
+      modulo: "notas_fiscais",
+      acao: "alteracao_categoria",
+      descricao: `${session.nome} alterou a categoria da nota #${ref}`,
+      tabela: "notas_fiscais",
+      registro_id: params.notaId,
+    });
+  }
+
+  return result;
 }
 
 export async function editarEAprovarNotaFiscalAction(
@@ -55,32 +117,35 @@ export async function rejeitarNotaFiscalAction(params: {
   notaId: string;
   motivo: string;
   rejeitadoPorNome: string;
-  perfil: PerfilNotaFiscal;
 }) {
-  assertAprovador(params.perfil);
+  const session = await requireAdminSession();
 
-  const client = createSupabaseServerClient();
+  const client = await createSupabaseServerClient();
   await rejeitarNotaFiscalServer(client, {
     notaId: params.notaId,
     motivo: params.motivo,
-    rejeitadoPorNome: params.rejeitadoPorNome,
+    rejeitadoPorNome: params.rejeitadoPorNome || session.nome,
+    rejeitadoPorId: session.userId,
   });
+
+  await auditarNotaRejeitada(session, params.notaId);
 }
 
 export async function solicitarCorrecaoNotaFiscalAction(params: {
   notaId: string;
   mensagem: string;
   solicitadoPorNome: string;
-  perfil: PerfilNotaFiscal;
 }) {
-  assertAprovador(params.perfil);
+  const session = await requireAdminSession();
 
-  const client = createSupabaseServerClient();
+  const client = await createSupabaseServerClient();
   await solicitarCorrecaoNotaFiscalServer(client, {
     notaId: params.notaId,
     mensagem: params.mensagem,
-    solicitadoPorNome: params.solicitadoPorNome,
+    solicitadoPorNome: params.solicitadoPorNome || session.nome,
   });
+
+  await auditarNotaCorrecaoSolicitada(session, params.notaId);
 }
 
 export async function enviarNotaParaAprovacaoAction(params: {
@@ -94,6 +159,26 @@ export async function enviarNotaParaAprovacaoAction(params: {
   itens: NotaFiscalItemExtraido[];
   enviadoPorNome: string;
 }) {
-  const client = createSupabaseServerClient();
+  const session = await requireAdminSession();
+  const client = await createSupabaseServerClient();
+  const antes = await buscarNotaAntes(params.notaId);
+
   await salvarPendenciaNotaFiscalServer(client, params);
+
+  await auditarNotaPendencia(session, params.notaId, antes, {
+    obraId: params.obraId,
+    fornecedor: params.fornecedor,
+    valorTotal: params.valorTotal,
+  });
+
+  if (categoriasAlteradas(antes?.itens_json, params.itens)) {
+    const ref = formatReferenciaAuditoria(params.notaId);
+    await registrarAuditoriaSessao(session, {
+      modulo: "notas_fiscais",
+      acao: "alteracao_categoria",
+      descricao: `${session.nome} alterou a categoria da nota #${ref}`,
+      tabela: "notas_fiscais",
+      registro_id: params.notaId,
+    });
+  }
 }

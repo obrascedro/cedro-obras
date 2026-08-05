@@ -92,6 +92,32 @@ export function extrairMensagensMidia(
   return resultado;
 }
 
+import crypto from "node:crypto";
+
+export function validarAssinaturaWebhookMeta(params: {
+  rawBody: string;
+  signatureHeader: string | null;
+  appSecret: string;
+}): boolean {
+  const { rawBody, signatureHeader, appSecret } = params;
+  if (!signatureHeader?.startsWith("sha256=") || !appSecret) {
+    return false;
+  }
+
+  const expected =
+    "sha256=" +
+    crypto.createHmac("sha256", appSecret).update(rawBody, "utf8").digest("hex");
+
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(signatureHeader)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function extrairNomeRemetente(
   payload: WhatsAppWebhookPayload,
   from: string

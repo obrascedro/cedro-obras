@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertAdminApi } from "@/lib/auth-api";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { logNotaFiscal, logNotaFiscalError } from "@/lib/nota-fiscal-log";
 import { salvarClassificacaoAprendida } from "@/lib/nota-fiscal-classificacao-aprendida";
@@ -12,6 +13,9 @@ type AprenderBody = {
 };
 
 export async function POST(request: Request) {
+  const denied = await assertAdminApi();
+  if (denied) return denied;
+
   try {
     const body = (await request.json()) as AprenderBody;
     const { descricao, categoria, etapa } = body;
@@ -29,7 +33,7 @@ export async function POST(request: Request) {
       etapa,
     });
 
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     await salvarClassificacaoAprendida(descricao, categoria, etapa, supabase);
 
     logNotaFiscal("aprendizado.api.sucesso", {
@@ -40,11 +44,9 @@ export async function POST(request: Request) {
   } catch (error) {
     logNotaFiscalError("aprendizado.api.erro", error);
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Erro ao salvar classificação aprendida.";
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Não foi possível salvar a classificação." },
+      { status: 500 }
+    );
   }
 }

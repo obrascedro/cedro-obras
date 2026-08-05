@@ -42,17 +42,17 @@ export default function NotaFiscalUploadZone({
         onDrop={onDrop}
         className={`rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
           isDragging
-            ? "border-zinc-400 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-950"
-            : "border-zinc-300 dark:border-zinc-700"
+            ? "border-[var(--cedro-brown)] bg-[var(--cedro-bg)]"
+            : "border-[var(--cedro-border)]"
         }`}
       >
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+        <p className="text-sm font-medium text-[var(--cedro-text)]">
           Arraste e solte o arquivo aqui
         </p>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           ou clique para selecionar JPG, JPEG, PNG, WEBP ou PDF (até 10 MB)
         </p>
-        <label className="mt-4 inline-flex cursor-pointer items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200">
+        <label className="cedro-btn-primary mt-4 inline-flex cursor-pointer items-center justify-center px-4 py-2.5 text-sm">
           Selecionar arquivo
           <input
             type="file"
@@ -64,13 +64,13 @@ export default function NotaFiscalUploadZone({
       </div>
 
       {selectedFile ? (
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <div className="mt-4 rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-bg)] p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+              <p className="text-sm font-medium text-[var(--cedro-text)]">
                 {selectedFile.name}
               </p>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
                 {selectedFile.type || "Tipo não identificado"} —{" "}
                 {formatFileSize(selectedFile.size)}
               </p>
@@ -78,7 +78,7 @@ export default function NotaFiscalUploadZone({
             <button
               type="button"
               onClick={() => onFileSelect(null)}
-              className="text-sm font-medium text-red-600 transition-colors hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+              className="text-sm font-medium text-[var(--cedro-error)] transition-colors hover:text-[var(--cedro-brown-dark)]"
             >
               Cancelar arquivo
             </button>
@@ -89,18 +89,18 @@ export default function NotaFiscalUploadZone({
             <img
               src={previewUrl}
               alt={`Prévia de ${selectedFile.name}`}
-              className="mt-4 max-h-64 w-full rounded-lg border border-zinc-200 object-contain dark:border-zinc-800"
+              className="mt-4 max-h-64 w-full rounded-lg border border-[var(--cedro-border)] object-contain"
             />
           ) : (
-            <div className="mt-4 flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+            <div className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--cedro-border)] bg-[var(--cedro-surface)] px-4 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--cedro-bg)] text-[var(--cedro-text)]">
                 PDF
               </div>
               <div>
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                <p className="text-sm font-medium text-[var(--cedro-text)]">
                   Documento PDF selecionado
                 </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-[var(--cedro-text-muted)]">
                   A prévia visual não está disponível para PDF.
                 </p>
               </div>

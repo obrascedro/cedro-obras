@@ -13,10 +13,16 @@
     "whatsapp:test-pipeline": "node scripts/whatsapp-test-pipeline.mjs",
     "whatsapp:test-webhook": "node scripts/whatsapp-test-webhook-post.mjs",
     "portal:verify": "node scripts/verify-portal-funcionarios.mjs",
-    "portal:apply-sql": "node scripts/apply-portal-funcionarios.mjs"
+    "portal:apply-sql": "node scripts/apply-portal-funcionarios.mjs",
+    "admin:create-user": "node scripts/create-admin-user.mjs",
+    "test:auth-routing": "node scripts/test-auth-routing.mjs",
+    "test:minhas-notas": "node scripts/test-minhas-notas.mjs",
+    "test:auditoria": "node scripts/test-auditoria.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
+    "lucide-react": "^1.28.0",
     "next": "16.2.12",
     "openai": "^7.4.0",
     "react": "19.2.4",

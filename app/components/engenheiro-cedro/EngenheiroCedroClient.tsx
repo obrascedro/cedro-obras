@@ -21,11 +21,13 @@ type ObraOption = { id: string; nome: string };
 type EngenheiroCedroClientProps = {
   obras: ObraOption[];
   conversasIniciais: ConversaAssistente[];
+  storageDisponivel?: boolean;
 };
 
 export default function EngenheiroCedroClient({
   obras,
   conversasIniciais,
+  storageDisponivel = true,
 }: EngenheiroCedroClientProps) {
   const [conversas, setConversas] = useState(conversasIniciais);
   const [conversaId, setConversaId] = useState<string | null>(null);
@@ -92,7 +94,9 @@ export default function EngenheiroCedroClient({
             ];
           });
 
-          const lista = await listarConversasEngenheiroCedro();
+          const lista = storageDisponivel
+            ? await listarConversasEngenheiroCedro()
+            : [];
           setConversas(lista);
         } catch (e) {
           setErro(
@@ -103,7 +107,7 @@ export default function EngenheiroCedroClient({
         }
       });
     },
-    [conversaId, isPending, obraId]
+    [conversaId, isPending, obraId, storageDisponivel]
   );
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -125,23 +129,25 @@ export default function EngenheiroCedroClient({
     <div className="flex min-h-[calc(100vh-12rem)] flex-col gap-4 lg:flex-row">
       {/* Histórico */}
       <aside className="w-full shrink-0 lg:w-64">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="cedro-card p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            <h2 className="text-sm font-semibold text-[var(--cedro-text)]">
               Conversas
             </h2>
             <button
               type="button"
               onClick={novaConversa}
-              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+              className="text-xs font-medium text-[var(--cedro-brown)] hover:text-[var(--cedro-brown-hover)]"
             >
               + Nova
             </button>
           </div>
           <ul className="max-h-64 space-y-1 overflow-y-auto lg:max-h-[28rem]">
             {conversas.length === 0 ? (
-              <li className="text-xs text-zinc-500 dark:text-zinc-400">
-                Nenhuma conversa ainda.
+              <li className="text-xs text-[var(--cedro-text-muted)]">
+                {storageDisponivel
+                  ? "Nenhuma conversa ainda."
+                  : "Histórico indisponível até configurar o banco."}
               </li>
             ) : (
               conversas.map((c) => (
@@ -151,11 +157,11 @@ export default function EngenheiroCedroClient({
                     onClick={() => void carregarConversa(c.id)}
                     className={`group flex w-full items-start justify-between rounded-lg px-2 py-2 text-left text-xs transition-colors ${
                       conversaId === c.id
-                        ? "bg-zinc-100 dark:bg-zinc-800"
-                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        ? "bg-[var(--cedro-bg)]"
+                        : "hover:bg-[var(--cedro-bg)]"
                     }`}
                   >
-                    <span className="line-clamp-2 flex-1 text-zinc-700 dark:text-zinc-300">
+                    <span className="line-clamp-2 flex-1 text-[var(--cedro-text)]">
                       {c.titulo ?? "Conversa"}
                     </span>
                     <span
@@ -171,7 +177,7 @@ export default function EngenheiroCedroClient({
                           void handleExcluirConversa(c.id);
                         }
                       }}
-                      className="ml-1 hidden shrink-0 text-zinc-400 group-hover:inline hover:text-red-500"
+                      className="ml-1 hidden shrink-0 text-[var(--cedro-text-muted)] group-hover:inline hover:text-[var(--cedro-error)]"
                       aria-label="Excluir conversa"
                     >
                       ×
@@ -184,8 +190,8 @@ export default function EngenheiroCedroClient({
         </div>
 
         {obras.length > 0 ? (
-          <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <label className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          <div className="mt-4 cedro-card p-4">
+            <label className="mb-1.5 block text-xs font-medium text-[var(--cedro-text-muted)]">
               Obra em foco (opcional)
             </label>
             <select
@@ -205,11 +211,11 @@ export default function EngenheiroCedroClient({
       </aside>
 
       {/* Chat principal */}
-      <div className="flex min-h-[32rem] flex-1 flex-col rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="cedro-card flex min-h-[32rem] flex-1 flex-col">
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {mostrarBoasVindas ? (
             <div className="mx-auto max-w-xl text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgb(138_46_31/0.1)] text-[var(--cedro-brown)]">
                 <svg
                   className="h-7 w-7"
                   viewBox="0 0 24 24"
@@ -225,10 +231,10 @@ export default function EngenheiroCedroClient({
                   />
                 </svg>
               </div>
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-xl font-semibold text-[var(--cedro-text)]">
                 Olá, sou o Engenheiro Cedro.
               </h2>
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-2 text-sm text-[var(--cedro-text-muted)]">
                 Posso responder perguntas sobre suas obras, gastos, fornecedores,
                 orçamentos e notas fiscais — com dados reais do sistema.
               </p>
@@ -237,8 +243,9 @@ export default function EngenheiroCedroClient({
                   <button
                     key={sugestao}
                     type="button"
-                    onClick={() => enviar(sugestao)}
-                    className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    onClick={() => storageDisponivel && enviar(sugestao)}
+                    disabled={!storageDisponivel || isPending}
+                    className="rounded-full border border-[var(--cedro-border)] px-3 py-1.5 text-xs text-[var(--cedro-text)] transition-colors hover:bg-[var(--cedro-bg)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {sugestao}
                   </button>
@@ -252,7 +259,7 @@ export default function EngenheiroCedroClient({
               ))}
               {isPending ? (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                  <div className="rounded-2xl border border-[var(--cedro-border)] bg-[var(--cedro-bg)] px-4 py-3 text-sm text-[var(--cedro-text-muted)]">
                     Analisando dados das obras…
                   </div>
                 </div>
@@ -263,12 +270,12 @@ export default function EngenheiroCedroClient({
         </div>
 
         {erro ? (
-          <div className="mx-4 mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">
+          <div className="mx-4 mb-2 rounded-xl border border-[var(--cedro-error)]/12 bg-[var(--cedro-error-bg)] px-3 py-2 text-sm text-[var(--cedro-error)]">
             {erro}
             {erro.includes("assistente") || erro.includes("relation") ? (
               <p className="mt-1 text-xs">
                 Execute{" "}
-                <code className="rounded bg-red-100 px-1 dark:bg-red-950">
+                <code className="rounded bg-[var(--cedro-error-bg)] px-1">
                   supabase/assistente-conversas.sql
                 </code>{" "}
                 no Supabase.
@@ -279,7 +286,7 @@ export default function EngenheiroCedroClient({
 
         <form
           onSubmit={handleSubmit}
-          className="border-t border-zinc-200 p-4 dark:border-zinc-800"
+          className="border-t border-[var(--cedro-border)] p-4"
         >
           <div className="mx-auto flex max-w-3xl gap-2">
             <input
@@ -292,8 +299,8 @@ export default function EngenheiroCedroClient({
             />
             <button
               type="submit"
-              disabled={isPending || !pergunta.trim()}
-              className="shrink-0 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+              disabled={isPending || !pergunta.trim() || !storageDisponivel}
+              className="cedro-btn-primary shrink-0 px-5 py-2.5 text-sm disabled:opacity-60"
             >
               Enviar
             </button>

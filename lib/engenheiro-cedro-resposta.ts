@@ -38,7 +38,7 @@ export async function processarPerguntaEngenheiroCedro(
   const obra = resolverObraContexto(snapshot, obraId, pergunta);
   const { intent, etapa } = detectarIntent(pergunta);
 
-  let resposta = executarIntent(snapshot, intent, obra, etapa ?? extrairEtapaDaPergunta(pergunta));
+  const resposta = executarIntent(snapshot, intent, obra, etapa ?? extrairEtapaDaPergunta(pergunta));
 
   const indicadoresAuto = gerarIndicadoresAutomaticos(snapshot, obra);
   const idsExistentes = new Set(resposta.indicadores.map((i) => i.mensagem));

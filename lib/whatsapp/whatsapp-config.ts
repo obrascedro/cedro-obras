@@ -4,6 +4,7 @@ export function getWhatsAppConfig() {
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
   const defaultObraId = process.env.WHATSAPP_DEFAULT_OBRA_ID;
   const graphApiVersion = process.env.WHATSAPP_GRAPH_API_VERSION ?? "v21.0";
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
 
   return {
     token,
@@ -11,6 +12,7 @@ export function getWhatsAppConfig() {
     verifyToken,
     defaultObraId,
     graphApiVersion,
+    appSecret,
     isConfigured: Boolean(token && phoneNumberId && verifyToken),
   };
 }

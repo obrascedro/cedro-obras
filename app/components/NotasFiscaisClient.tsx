@@ -3,9 +3,18 @@
 import { DragEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { enviarNotaParaAprovacaoAction } from "@/app/actions/notas-fiscais-aprovacao";
+import {
+  atualizarStatusNotaAdminAction,
+  criarNotaProcessandoAdminAction,
+  excluirNotaAdminAction,
+  obterUrlArquivoNotaAdminAction,
+  salvarNotaManualAdminAction,
+  uploadArquivoNotaAdminAction,
+} from "@/app/actions/notas-fiscais-admin";
 import PendenciasAprovacao from "@/app/components/notas-fiscais/PendenciasAprovacao";
-import PerfilNotaFiscalBar from "@/app/components/notas-fiscais/PerfilNotaFiscalBar";
-import { supabase } from "@/lib/supabase";
+import NotaFiscalCamposForm from "@/app/components/notas-fiscais/NotaFiscalCamposForm";
+import NotaFiscalLeituraPreview from "@/app/components/notas-fiscais/NotaFiscalLeituraPreview";
+import NotaFiscalUploadZone from "@/app/components/notas-fiscais/NotaFiscalUploadZone";
 import { formatCurrency, formatDate, parseNumber } from "@/lib/format";
 import {
   criarItemVazio,
@@ -14,41 +23,28 @@ import {
   type NotaFiscalLeitura,
 } from "@/lib/nota-fiscal-ia";
 import type { AlertasLeitura } from "@/lib/nota-fiscal-validacao";
-import { salvarClassificacaoAprendida } from "@/lib/nota-fiscal-classificacao-aprendida";
 import {
-  atualizarStatusNotaFiscal,
-  criarNotaFiscalProcessando,
-} from "@/lib/notas-fiscais-db";
-import {
-  buildStoragePath,
   formatStatusLabel,
   formatOrigemNota,
   getObraNomeNota,
   isAcceptedFile,
   isImageType,
-  NOTAS_FISCAIS_BUCKET,
   NOTAS_FISCAIS_MAX_SIZE_BYTES,
   statusNotaBadgeClass,
   type NotaFiscal,
   type ObraOption,
 } from "@/lib/notas-fiscais";
-import NotaFiscalCamposForm from "@/app/components/notas-fiscais/NotaFiscalCamposForm";
-import NotaFiscalLeituraPreview from "@/app/components/notas-fiscais/NotaFiscalLeituraPreview";
-import NotaFiscalUploadZone from "@/app/components/notas-fiscais/NotaFiscalUploadZone";
-import type { PerfilNotaFiscal } from "@/lib/nota-fiscal-perfil";
-import {
-  obterNomeUsuarioLocal,
-  obterPerfilLocal,
-} from "@/lib/nota-fiscal-perfil";
 
 type NotasFiscaisClientProps = {
   obras: ObraOption[];
   notasIniciais: NotaFiscal[];
+  adminNome: string;
 };
 
 export default function NotasFiscaisClient({
   obras,
   notasIniciais,
+  adminNome,
 }: NotasFiscaisClientProps) {
   const router = useRouter();
   const previewUrlRef = useRef<string | null>(null);
@@ -80,12 +76,13 @@ export default function NotasFiscaisClient({
   const [alertasLeitura, setAlertasLeitura] = useState<AlertasLeitura | null>(
     null
   );
-  const [perfil, setPerfil] = useState<PerfilNotaFiscal>("funcionario");
-  const [usuarioNome, setUsuarioNome] = useState("Funcionário");
 
   useEffect(() => {
-    setPerfil(obterPerfilLocal());
-    setUsuarioNome(obterNomeUsuarioLocal());
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
   }, []);
 
   function clearPreviewUrl() {
@@ -162,26 +159,20 @@ export default function NotasFiscaisClient({
     handleFileSelection(event.dataTransfer.files?.[0] ?? null);
   }
 
-  async function uploadNotaParaStorage() {
+  async function uploadNotaParaStorage(): Promise<string | null> {
     if (!selectedFile || !obraId) {
       return null;
     }
 
-    const storagePath = buildStoragePath(obraId, selectedFile.name);
+    const formData = new FormData();
+    formData.set("obraId", obraId);
+    formData.set("arquivo", selectedFile);
 
-    const { error: uploadError } = await supabase.storage
-      .from(NOTAS_FISCAIS_BUCKET)
-      .upload(storagePath, selectedFile, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: selectedFile.type || undefined,
-      });
-
-    if (uploadError) {
-      throw new Error(uploadError.message);
+    const result = await uploadArquivoNotaAdminAction(formData);
+    if ("erro" in result) {
+      throw new Error(result.erro);
     }
-
-    return storagePath;
+    return result.storagePath;
   }
 
   function aplicarLeituraNaInterface(
@@ -230,24 +221,21 @@ export default function NotasFiscaisClient({
       return;
     }
 
-    const { error: insertError } = await supabase.from("notas_fiscais").insert({
-      obra_id: obraId,
-      arquivo_path: storagePath,
-      arquivo_nome: selectedFile.name,
-      arquivo_tipo: selectedFile.type || null,
-      arquivo_tamanho: selectedFile.size,
-      fornecedor: fornecedor.trim() || null,
-      data_nota: dataNota || null,
-      valor_total: valorInformado ? parseNumber(valorInformado) : null,
-      observacoes: observacoes.trim() || null,
-      origem: "manual",
-      status_processamento: "aguardando",
+    const salvar = await salvarNotaManualAdminAction({
+      obraId,
+      storagePath,
+      fileName: selectedFile.name,
+      mimeType: selectedFile.type || null,
+      fileSize: selectedFile.size,
+      fornecedor,
+      dataNota,
+      valorInformado,
+      observacoes,
     });
 
-    if (insertError) {
-      await supabase.storage.from(NOTAS_FISCAIS_BUCKET).remove([storagePath]);
+    if ("erro" in salvar) {
       setLoading(false);
-      setError(insertError.message);
+      setError(salvar.erro);
       return;
     }
 
@@ -283,16 +271,23 @@ export default function NotasFiscaisClient({
       }
 
       if (!notaId) {
-        notaId = await criarNotaFiscalProcessando({
+        const criada = await criarNotaProcessandoAdminAction({
           obraId,
           storagePath,
           fileName: selectedFile.name,
           mimeType: selectedFile.type || null,
           fileSize: selectedFile.size,
         });
+        if ("erro" in criada) {
+          throw new Error(criada.erro);
+        }
+        notaId = criada.notaId;
         setNotaIdIa(notaId);
       } else {
-        await atualizarStatusNotaFiscal(notaId, "processando");
+        const atualizado = await atualizarStatusNotaAdminAction(notaId, "processando");
+        if ("erro" in atualizado) {
+          throw new Error(atualizado.erro);
+        }
       }
 
       const response = await fetch("/api/notas-fiscais/ler", {
@@ -304,7 +299,7 @@ export default function NotasFiscaisClient({
           fileName: selectedFile.name,
           notaId,
           observacoes,
-          enviadoPorNome: usuarioNome,
+          enviadoPorNome: adminNome,
         }),
       });
 
@@ -423,7 +418,7 @@ export default function NotasFiscaisClient({
         valorTotal,
         observacoes,
         itens: itensLeitura,
-        enviadoPorNome: usuarioNome,
+        enviadoPorNome: adminNome,
       });
 
       setSuccess(
@@ -453,18 +448,16 @@ export default function NotasFiscaisClient({
     setError("");
     setOpeningId(nota.id);
 
-    const { data, error: signedUrlError } = await supabase.storage
-      .from(NOTAS_FISCAIS_BUCKET)
-      .createSignedUrl(nota.arquivo_path, 3600);
+    const result = await obterUrlArquivoNotaAdminAction(nota.arquivo_path);
 
     setOpeningId(null);
 
-    if (signedUrlError || !data?.signedUrl) {
-      setError(signedUrlError?.message ?? "Não foi possível abrir o arquivo.");
+    if ("erro" in result) {
+      setError(result.erro);
       return;
     }
 
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    window.open(result.url, "_blank", "noopener,noreferrer");
   }
 
   async function handleDeleteNota(nota: NotaFiscal) {
@@ -480,25 +473,12 @@ export default function NotasFiscaisClient({
     setSuccess("");
     setDeletingId(nota.id);
 
-    const { error: storageError } = await supabase.storage
-      .from(NOTAS_FISCAIS_BUCKET)
-      .remove([nota.arquivo_path]);
-
-    if (storageError) {
-      setDeletingId(null);
-      setError(storageError.message);
-      return;
-    }
-
-    const { error: deleteError } = await supabase
-      .from("notas_fiscais")
-      .delete()
-      .eq("id", nota.id);
+    const result = await excluirNotaAdminAction(nota.id, nota.arquivo_path);
 
     setDeletingId(null);
 
-    if (deleteError) {
-      setError(deleteError.message);
+    if ("erro" in result) {
+      setError(result.erro);
       return;
     }
 
@@ -513,28 +493,20 @@ export default function NotasFiscaisClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <PerfilNotaFiscalBar
-        onChange={(p, nome) => {
-          setPerfil(p);
-          setUsuarioNome(nome);
-        }}
-      />
-
       <PendenciasAprovacao
         notas={notasIniciais}
         obras={obras}
-        perfil={perfil}
-        usuarioNome={usuarioNome}
+        adminNome={adminNome}
       />
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+        className="cedro-card p-6 sm:p-8"
       >
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+        <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
           Enviar nota fiscal
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
           Envie a nota e use a leitura com IA. Os gastos só entram após
           aprovação do responsável.
         </p>
@@ -587,53 +559,53 @@ export default function NotasFiscaisClient({
           />
         ) : null}
 
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:justify-end dark:border-zinc-800">
+        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--cedro-border)] pt-6 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={handleLerComIA}
             disabled={iaLoading || loading || !selectedFile || !obraId}
-            className="rounded-lg border border-zinc-900 px-5 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-50 dark:text-zinc-50 dark:hover:bg-zinc-800"
+            className="cedro-btn-secondary px-5 py-2.5 text-sm"
           >
             {iaLoading ? "Lendo com IA..." : "Ler com IA"}
           </button>
           <button
             type="submit"
             disabled={loading || iaLoading || !selectedFile}
-            className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="cedro-btn-primary px-5 py-2.5 text-sm"
           >
             {loading ? "Enviando..." : "Enviar nota fiscal"}
           </button>
         </div>
 
         {success ? (
-          <p className="mt-4 text-sm text-green-600 dark:text-green-400">
+          <p className="mt-4 text-sm text-[var(--cedro-success)]">
             {success}
           </p>
         ) : null}
 
         {error ? (
-          <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mt-4 text-sm text-[var(--cedro-error)]">{error}</p>
         ) : null}
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+      <div className="cedro-card overflow-hidden">
+        <div className="border-b border-[var(--cedro-border)] px-6 py-4">
+          <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
             Histórico de notas fiscais
           </h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
             Notas já cadastradas no sistema.
           </p>
         </div>
 
         {notasIniciais.length === 0 ? (
-          <p className="p-6 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="p-6 text-sm text-[var(--cedro-text-muted)]">
             Nenhuma nota fiscal cadastrada ainda.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-              <thead className="bg-zinc-50 dark:bg-zinc-950/50">
+          <div className="cedro-table-wrap">
+            <table className="cedro-table">
+              <thead>
                 <tr>
                   {[
                     "Data",
@@ -648,58 +620,54 @@ export default function NotasFiscaisClient({
                     <th
                       key={header || "actions"}
                       scope="col"
-                      className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
                     >
                       {header}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <tbody>
                 {notasIniciais.map((nota) => (
-                  <tr
-                    key={nota.id}
-                    className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
-                  >
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                  <tr key={nota.id}>
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatDate(nota.data_nota ?? nota.criado_em.slice(0, 10))}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-900 dark:text-zinc-50">
+                    <td className="whitespace-nowrap font-medium">
                       {getObraNomeNota(nota.obras)}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {nota.fornecedor ?? "—"}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {nota.valor_total != null
                         ? formatCurrency(nota.valor_total)
                         : "—"}
                     </td>
-                    <td className="px-4 py-4 text-sm whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatOrigemNota(nota.origem)}
                       {nota.enviado_por_nome ? (
-                        <span className="mt-0.5 block text-xs text-zinc-500">
+                        <span className="mt-0.5 block text-xs text-[var(--cedro-text-muted)]">
                           {nota.enviado_por_nome}
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-4 py-4 text-sm text-zinc-600 dark:text-zinc-300">
+                    <td className="text-[var(--cedro-text-muted)]">
                       {nota.arquivo_nome}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusNotaBadgeClass(nota.status_processamento)}`}
                       >
                         {formatStatusLabel(nota.status_processamento)}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleOpenNota(nota)}
                           disabled={openingId === nota.id}
-                          className="text-sm font-medium text-zinc-900 underline-offset-4 hover:underline disabled:opacity-60 dark:text-zinc-50"
+                          className="text-sm font-medium text-[var(--cedro-brown)] underline-offset-4 hover:underline disabled:opacity-60"
                         >
                           {openingId === nota.id ? "Abrindo..." : "Abrir"}
                         </button>
@@ -707,7 +675,7 @@ export default function NotasFiscaisClient({
                           type="button"
                           onClick={() => handleDeleteNota(nota)}
                           disabled={deletingId === nota.id}
-                          className="text-sm font-medium text-red-600 transition-colors hover:text-red-700 disabled:opacity-60 dark:text-red-400 dark:hover:text-red-300"
+                          className="text-sm font-medium text-[var(--cedro-error)] transition-colors hover:text-[var(--cedro-brown-dark)] disabled:opacity-60"
                         >
                           {deletingId === nota.id ? "Excluindo..." : "Excluir"}
                         </button>

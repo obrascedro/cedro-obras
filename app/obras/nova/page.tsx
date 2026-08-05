@@ -1,8 +1,13 @@
 import Link from "next/link";
 import PageShell from "@/app/components/PageShell";
 import ObraForm from "@/app/components/ObraForm";
+import { listarClientesObraAdminAction } from "@/app/actions/obras-admin";
 
-export default function NovaObraPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NovaObraPage() {
+  const clientes = await listarClientesObraAdminAction();
+
   return (
     <PageShell
       title="Cadastro de Obra"
@@ -17,7 +22,7 @@ export default function NovaObraPage() {
         </Link>
       }
     >
-      <ObraForm />
+      <ObraForm clientes={clientes} />
     </PageShell>
   );
 }

@@ -1,7 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { FormEvent, useState, useTransition } from "react";
+import {
+  criarClienteAdminAction,
+} from "@/app/actions/clientes-admin";
+import type { AdminActionState } from "@/app/actions/obras-admin";
+import {
+  btnPrimaryClassName,
+  inputClassName,
+  labelClassName,
+} from "@/app/components/ui/form-styles";
 
 export default function ClienteForm() {
   const [nome, setNome] = useState("");
@@ -9,35 +17,38 @@ export default function ClienteForm() {
   const [telefone, setTelefone] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMensagem("");
     setLoading(true);
 
-    const { error } = await supabase.from("clientes").insert({
-      nome,
-      email,
-      telefone,
+    const formData = new FormData();
+    formData.set("nome", nome);
+    formData.set("email", email);
+    formData.set("telefone", telefone);
+
+    startTransition(async () => {
+      const result: AdminActionState = await criarClienteAdminAction({}, formData);
+      setLoading(false);
+
+      if (result.erro) {
+        setMensagem(result.erro);
+        return;
+      }
+
+      setNome("");
+      setEmail("");
+      setTelefone("");
+      setMensagem(result.sucesso ?? "Cliente cadastrado com sucesso!");
     });
-
-    setLoading(false);
-
-    if (error) {
-      setMensagem(error.message);
-      return;
-    }
-
-    setNome("");
-    setEmail("");
-    setTelefone("");
-    setMensagem("Cliente cadastrado com sucesso!");
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex w-full max-w-md flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <label htmlFor="nome" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label htmlFor="nome" className={labelClassName}>
           Nome
         </label>
         <input
@@ -46,12 +57,12 @@ export default function ClienteForm() {
           required
           value={nome}
           onChange={(event) => setNome(event.target.value)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className={inputClassName}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label htmlFor="email" className={labelClassName}>
           Email
         </label>
         <input
@@ -60,12 +71,12 @@ export default function ClienteForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className={inputClassName}
         />
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="telefone" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <label htmlFor="telefone" className={labelClassName}>
           Telefone
         </label>
         <input
@@ -74,14 +85,14 @@ export default function ClienteForm() {
           required
           value={telefone}
           onChange={(event) => setTelefone(event.target.value)}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className={inputClassName}
         />
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="mt-2 rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
+        className={`mt-2 ${btnPrimaryClassName}`}
       >
         {loading ? "Salvando..." : "Cadastrar cliente"}
       </button>
@@ -89,9 +100,9 @@ export default function ClienteForm() {
       {mensagem && (
         <p
           className={`text-sm ${
-            mensagem === "Cliente cadastrado com sucesso!"
-              ? "text-green-600 dark:text-green-400"
-              : "text-red-600 dark:text-red-400"
+            mensagem.includes("sucesso")
+              ? "text-[var(--cedro-success)]"
+              : "text-[var(--cedro-error)]"
           }`}
         >
           {mensagem}

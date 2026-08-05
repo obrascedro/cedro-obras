@@ -1,0 +1,9 @@
+-- =============================================================================
+-- ⚠️  SUBSTITUÍDO — NÃO EXECUTE ESTE ARQUIVO
+-- =============================================================================
+--
+-- O conteúdo foi incorporado em:
+--   supabase/funcionario-obras.sql  (seção 5 + verificação 6e)
+--
+-- Execute apenas o arquivo funcionario-obras.sql corrigido (versão única).
+-- =============================================================================

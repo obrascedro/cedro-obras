@@ -1,10 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import {
+  criarObraAdminAction,
+  type AdminActionState,
+} from "@/app/actions/obras-admin";
 import { formatCurrency, parseNumber } from "@/lib/format";
 import {
+  btnPrimarySmClassName,
+  btnSecondaryClassName,
+  cardClassName,
   inputClassName,
   labelClassName,
   selectClassName,
@@ -22,23 +28,17 @@ const STATUS_OPTIONS = [
   "Concluída",
   "Cancelada",
 ];
-const TIPO_OBRA_OPTIONS = [
-  { value: "cliente", label: "Obra de cliente" },
-  { value: "reforma_para_venda", label: "Reforma para venda" },
-  { value: "reforma_para_aluguel", label: "Reforma para aluguel" },
-  { value: "obra_propria", label: "Obra própria" },
-  { value: "investimento", label: "Investimento" },
-];
 
-export default function ObraForm() {
+type ObraFormProps = {
+  clientes: Cliente[];
+};
+
+export default function ObraForm({ clientes }: ObraFormProps) {
   const router = useRouter();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loadingClientes, setLoadingClientes] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [clientesError, setClientesError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [tipoObra, setTipoObra] = useState("cliente");
+  const [, startTransition] = useTransition();
 
   const [clienteId, setClienteId] = useState("");
   const [nome, setNome] = useState("");
@@ -55,60 +55,42 @@ export default function ObraForm() {
     return parseNumber(valorRecebido) - parseNumber(gastoRealizado);
   }, [valorRecebido, gastoRealizado]);
 
-  useEffect(() => {
-    async function loadClientes() {
-      const { data, error: fetchError } = await supabase
-        .from("clientes")
-        .select("id, nome")
-        .order("nome", { ascending: true });
-
-      if (fetchError) {
-        setClientesError(fetchError.message);
-      } else {
-        setClientes(data ?? []);
-      }
-
-      setLoadingClientes(false);
-    }
-
-    loadClientes();
-  }, []);
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSuccess("");
     setLoading(true);
 
-    const { error: insertError } = await supabase.from("obras").insert({
-      cliente_id: clienteId,
-      nome,
-      status,
-      orcamento_previsto: parseNumber(orcamentoPrevisto),
-      valor_recebido: parseNumber(valorRecebido),
-      gasto_realizado: parseNumber(gastoRealizado),
-      lucro_estimado: lucroEstimado,
-      data_inicio: dataInicio || null,
-      data_previsao_termino: dataPrevistaTermino || null,
-      area_m2: parseNumber(areaM2),
-      observacoes: observacoes.trim() || null,
+    const formData = new FormData(event.currentTarget);
+    formData.set("clienteId", clienteId);
+    formData.set("nome", nome);
+    formData.set("status", status);
+    formData.set("orcamentoPrevisto", orcamentoPrevisto);
+    formData.set("valorRecebido", valorRecebido);
+    formData.set("gastoRealizado", gastoRealizado);
+    formData.set("dataInicio", dataInicio);
+    formData.set("dataPrevistaTermino", dataPrevistaTermino);
+    formData.set("areaM2", areaM2);
+    formData.set("observacoes", observacoes);
+
+    startTransition(async () => {
+      const result: AdminActionState = await criarObraAdminAction({}, formData);
+      setLoading(false);
+
+      if (result.erro) {
+        setError(result.erro);
+        return;
+      }
+
+      setSuccess(result.sucesso ?? "Obra cadastrada com sucesso");
+      setTimeout(() => router.push("/obras"), 1500);
     });
-
-    setLoading(false);
-
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
-
-    setSuccess("Obra cadastrada com sucesso");
-    setTimeout(() => router.push("/obras"), 1500);
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${cardClassName} p-6 sm:p-8`}
     >
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="flex flex-col gap-1.5 md:col-span-2">
@@ -118,13 +100,13 @@ export default function ObraForm() {
           <select
             id="cliente"
             required
-            disabled={loadingClientes}
+            disabled={clientes.length === 0}
             value={clienteId}
             onChange={(event) => setClienteId(event.target.value)}
             className={selectClassName}
           >
             <option value="">
-              {loadingClientes ? "Carregando clientes..." : "Selecione um cliente"}
+              {clientes.length === 0 ? "Nenhum cliente cadastrado" : "Selecione um cliente"}
             </option>
             {clientes.map((cliente) => (
               <option key={cliente.id} value={cliente.id}>
@@ -240,13 +222,13 @@ export default function ObraForm() {
             id="lucro-estimado"
             className={`flex min-h-[42px] items-center rounded-lg border px-3 py-2.5 text-sm font-medium ${
               lucroEstimado >= 0
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+                ? "border-[var(--cedro-success)]/12 bg-[var(--cedro-success-bg)] text-[var(--cedro-success)]"
+                : "border-[var(--cedro-error)]/12 bg-[var(--cedro-error-bg)] text-[var(--cedro-error)]"
             }`}
           >
             {formatCurrency(lucroEstimado)}
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-xs text-[var(--cedro-text-muted)]">
             Calculado automaticamente: valor recebido − gasto realizado
           </p>
         </div>
@@ -292,37 +274,31 @@ export default function ObraForm() {
         </div>
       </div>
 
-      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:justify-end dark:border-zinc-800">
+      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--cedro-border)] pt-6 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={() => router.push("/obras")}
-          className="rounded-lg border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          className={btnSecondaryClassName}
         >
           Cancelar
         </button>
         <button
           type="submit"
-          disabled={loading || loadingClientes}
-          className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          disabled={loading || clientes.length === 0}
+          className={btnPrimarySmClassName}
         >
           {loading ? "Cadastrando..." : "Cadastrar Obra"}
         </button>
       </div>
 
-      {clientesError && (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400">
-          Erro ao carregar clientes: {clientesError}
-        </p>
-      )}
-
       {success && (
-        <p className="mt-4 text-sm text-green-600 dark:text-green-400">
+        <p className="mt-4 text-sm text-[var(--cedro-success)]">
           {success}
         </p>
       )}
 
       {error && (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="mt-4 text-sm text-[var(--cedro-error)]">{error}</p>
       )}
     </form>
   );

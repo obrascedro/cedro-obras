@@ -1,7 +1,37 @@
-export const inputClassName =
-  "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200/80 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-800";
+import {
+  inputBaseClassName,
+  labelBaseClassName,
+  portalCardClassName,
+  selectBaseClassName,
+} from "@/lib/design-system/tokens";
 
-export const labelClassName =
-  "text-sm font-medium text-zinc-700 dark:text-zinc-300";
+/** @deprecated Preferir componente Input */
+export const inputClassName = inputBaseClassName;
 
-export const selectClassName = `${inputClassName} appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%236b7280%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E')] bg-size-[1.25rem] bg-position-[right_0.75rem_center] bg-no-repeat pr-10`;
+/** @deprecated Preferir componente Input/Select label */
+export const labelClassName = labelBaseClassName;
+
+/** @deprecated Preferir componente Select */
+export const selectClassName = selectBaseClassName;
+
+export const cardClassName = "cedro-card";
+
+export const btnPrimaryClassName =
+  "cedro-btn-primary w-full px-4 py-3.5 text-base disabled:opacity-60";
+
+export const btnPrimarySmClassName =
+  "cedro-btn-primary px-4 py-2.5 text-sm disabled:opacity-60";
+
+export const btnSecondaryClassName =
+  "cedro-btn-secondary px-4 py-2.5 text-sm disabled:opacity-60";
+
+export { portalCardClassName };
+
+export const portalAlertErrorClassName =
+  "rounded-2xl border border-[var(--cedro-error)]/12 bg-[var(--cedro-error-bg)] px-5 py-4 text-sm text-[var(--cedro-error)] sm:px-6 sm:py-5";
+
+export const portalAlertWarningClassName =
+  "rounded-2xl border border-[var(--cedro-warning-border)] bg-[var(--cedro-warning-bg)] px-5 py-4 text-sm text-[var(--cedro-text)] sm:px-6 sm:py-5";
+
+export const portalAlertSuccessClassName =
+  "rounded-2xl border border-[var(--cedro-success)]/12 bg-[var(--cedro-success-bg)] px-5 py-4 text-sm text-[var(--cedro-success)] sm:px-6 sm:py-5";

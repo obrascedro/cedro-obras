@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { recalcularFinanceiroObra } from "@/lib/gastos-obra";
+import { recalcularFinanceiroObra } from "@/lib/obra-financeiro";
 import { salvarClassificacaoAprendida } from "@/lib/nota-fiscal-classificacao-aprendida";
 import { registrarEventoNotaFiscal } from "@/lib/nota-fiscal-eventos";
 import { logNotaFiscal, logNotaFiscalError } from "@/lib/nota-fiscal-log";
@@ -89,6 +89,8 @@ export async function aprovarNotaFiscalServer(
     valor_unitario: item.valor_unitario,
     valor_total: item.valor_total,
     data_gasto: params.dataNota || null,
+    origem: "nota_fiscal",
+    ativo: true,
   }));
 
   const { error: insertError } = await client

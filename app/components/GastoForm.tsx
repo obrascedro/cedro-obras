@@ -1,14 +1,21 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { formatCurrency, parseNumber } from "@/lib/format";
-import { recalcularGastoRealizado } from "@/lib/gastos-obra";
 import {
+  criarGastoObraAdminAction,
+} from "@/app/actions/gastos-admin";
+import type { AdminActionState } from "@/app/actions/obras-admin";
+import { formatCurrency, parseNumber } from "@/lib/format";
+import {
+  btnPrimarySmClassName,
+  btnSecondaryClassName,
+  cardClassName,
   inputClassName,
   labelClassName,
+  selectClassName,
 } from "@/app/components/ui/form-styles";
+import { CATEGORIAS_GASTO, ETAPAS_GASTO } from "@/lib/gastos-opcoes";
 
 type GastoFormProps = {
   obraId: string;
@@ -21,6 +28,7 @@ export default function GastoForm({ obraId, onCancel, onSuccess }: GastoFormProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [, startTransition] = useTransition();
 
   const [etapa, setEtapa] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -40,56 +48,45 @@ export default function GastoForm({ obraId, onCancel, onSuccess }: GastoFormProp
     setSuccess("");
     setLoading(true);
 
-    const { error: insertError } = await supabase.from("gastos_obra").insert({
-      obra_id: obraId,
-      etapa,
-      categoria,
-      descricao,
-      fornecedor: fornecedor.trim() || null,
-      quantidade: parseNumber(quantidade),
-      valor_unitario: parseNumber(valorUnitario),
-      valor_total: valorTotal,
-      data_gasto: dataGasto || null,
+    const formData = new FormData();
+    formData.set("obraId", obraId);
+    formData.set("etapa", etapa);
+    formData.set("categoria", categoria);
+    formData.set("descricao", descricao);
+    formData.set("fornecedor", fornecedor);
+    formData.set("quantidade", quantidade);
+    formData.set("valorUnitario", valorUnitario);
+    formData.set("dataGasto", dataGasto);
+
+    startTransition(async () => {
+      const result: AdminActionState = await criarGastoObraAdminAction({}, formData);
+      setLoading(false);
+
+      if (result.erro) {
+        setError(result.erro);
+        return;
+      }
+
+      setSuccess(result.sucesso ?? "Gasto cadastrado com sucesso");
+      router.refresh();
+      onSuccess?.();
+
+      setEtapa("");
+      setCategoria("");
+      setDescricao("");
+      setFornecedor("");
+      setQuantidade("");
+      setValorUnitario("");
+      setDataGasto("");
     });
-
-    if (insertError) {
-      setLoading(false);
-      setError(insertError.message);
-      return;
-    }
-
-    try {
-      await recalcularGastoRealizado(obraId);
-    } catch (recalcError) {
-      setLoading(false);
-      setError(
-        recalcError instanceof Error
-          ? recalcError.message
-          : "Erro ao atualizar o gasto realizado da obra."
-      );
-      return;
-    }
-
-    setLoading(false);
-    setSuccess("Gasto cadastrado com sucesso");
-    router.refresh();
-    onSuccess?.();
-
-    setEtapa("");
-    setCategoria("");
-    setDescricao("");
-    setFornecedor("");
-    setQuantidade("");
-    setValorUnitario("");
-    setDataGasto("");
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${cardClassName} p-6 sm:p-8`}
     >
-      <h2 className="mb-5 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+      <h2 className="mb-5 text-lg font-semibold text-[var(--cedro-text)]">
         Novo gasto
       </h2>
 
@@ -98,30 +95,40 @@ export default function GastoForm({ obraId, onCancel, onSuccess }: GastoFormProp
           <label htmlFor="etapa" className={labelClassName}>
             Etapa
           </label>
-          <input
+          <select
             id="etapa"
-            type="text"
             required
             value={etapa}
             onChange={(event) => setEtapa(event.target.value)}
-            placeholder="Ex.: Fundação"
-            className={inputClassName}
-          />
+            className={selectClassName}
+          >
+            <option value="">Selecionar etapa</option>
+            {ETAPAS_GASTO.map((opcao) => (
+              <option key={opcao} value={opcao}>
+                {opcao}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="categoria" className={labelClassName}>
             Categoria
           </label>
-          <input
+          <select
             id="categoria"
-            type="text"
             required
             value={categoria}
             onChange={(event) => setCategoria(event.target.value)}
-            placeholder="Ex.: Material"
-            className={inputClassName}
-          />
+            className={selectClassName}
+          >
+            <option value="">Selecionar categoria</option>
+            {CATEGORIAS_GASTO.map((opcao) => (
+              <option key={opcao} value={opcao}>
+                {opcao}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1.5 md:col-span-2">
@@ -193,11 +200,11 @@ export default function GastoForm({ obraId, onCancel, onSuccess }: GastoFormProp
           </label>
           <div
             id="valor-total"
-            className="flex min-h-[42px] items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm font-medium text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+            className="flex min-h-[42px] items-center rounded-lg border border-[var(--cedro-border)] bg-[var(--cedro-bg)] px-3 py-2.5 text-sm font-medium text-[var(--cedro-text)]"
           >
             {formatCurrency(valorTotal)}
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-xs text-[var(--cedro-text-muted)]">
             Calculado automaticamente: quantidade × valor unitário
           </p>
         </div>
@@ -217,29 +224,29 @@ export default function GastoForm({ obraId, onCancel, onSuccess }: GastoFormProp
         </div>
       </div>
 
-      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-zinc-100 pt-6 sm:flex-row sm:justify-end dark:border-zinc-800">
+      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[var(--cedro-border)] pt-6 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          className={btnSecondaryClassName}
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className={btnPrimarySmClassName}
         >
           {loading ? "Salvando..." : "Salvar gasto"}
         </button>
       </div>
 
       {success && (
-        <p className="mt-4 text-sm text-green-600 dark:text-green-400">{success}</p>
+        <p className="mt-4 text-sm text-[var(--cedro-success)]">{success}</p>
       )}
 
       {error && (
-        <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="mt-4 text-sm text-[var(--cedro-error)]">{error}</p>
       )}
     </form>
   );

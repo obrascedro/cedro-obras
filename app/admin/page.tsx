@@ -3,6 +3,16 @@ import PageShell from "@/app/components/PageShell";
 
 const modulos = [
   {
+    href: "/admin/funcionarios",
+    titulo: "Funcionários",
+    descricao: "Cadastrar usuários, perfis, senhas e status de acesso.",
+  },
+  {
+    href: "/admin/auditoria",
+    titulo: "Auditoria",
+    descricao: "Log de atividades administrativas, filtros e exportação.",
+  },
+  {
     href: "/financeiro/notas-fiscais",
     titulo: "Notas fiscais",
     descricao: "Aprovar pendências, conferir leituras IA e histórico.",
@@ -36,12 +46,12 @@ export default function AdminPage() {
           <Link
             key={modulo.href}
             href={modulo.href}
-            className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/50"
+            className="cedro-card p-6 transition-colors hover:border-[var(--cedro-border-strong)] hover:bg-[var(--cedro-bg)]"
           >
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
               {modulo.titulo}
             </h2>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-2 text-sm text-[var(--cedro-text-muted)]">
               {modulo.descricao}
             </p>
           </Link>
