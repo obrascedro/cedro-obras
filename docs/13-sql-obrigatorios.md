@@ -45,6 +45,14 @@ Tabelas **`obras`**, **`clientes`** e **`gastos_obra`** devem existir no banco (
 | 10 | funcionario-obras.sql | Vínculo funcionário↔obra + seed |
 | 11 | production-rls-hardening.sql | RLS produção, diretoria, ownership assistente |
 
+## Pós-portal (se envio de notas pelo funcionário falhar no status)
+
+Após `portal-minhas-notas-rls.sql`, se o portal retornar erro ao mudar status para `processando`:
+
+```
+supabase/notas-fiscais-update-funcionario-rls.sql
+```
+
 ## Verificação pós-SQL
 
 ```bash

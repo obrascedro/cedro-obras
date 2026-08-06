@@ -15,7 +15,7 @@ Copie `.env.example` para `.env.local` (dev) ou configure na Vercel (produção)
 
 | Variável | Descrição |
 |----------|-----------|
-| `WHATSAPP_ACCESS_TOKEN` | Token permanente Meta Business |
+| `WHATSAPP_TOKEN` | Token permanente Meta Business (`WHATSAPP_ACCESS_TOKEN` também aceito) |
 | `WHATSAPP_PHONE_NUMBER_ID` | ID do número WhatsApp Business |
 | `WHATSAPP_VERIFY_TOKEN` | Token definido por você para verificação GET |
 | `WHATSAPP_APP_SECRET` | App Secret Meta — **obrigatório em produção** para HMAC |

@@ -1,5 +1,7 @@
 export function getWhatsAppConfig() {
-  const token = process.env.WHATSAPP_TOKEN;
+  const token =
+    process.env.WHATSAPP_TOKEN?.trim() ||
+    process.env.WHATSAPP_ACCESS_TOKEN?.trim();
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
   const defaultObraId = process.env.WHATSAPP_DEFAULT_OBRA_ID;
