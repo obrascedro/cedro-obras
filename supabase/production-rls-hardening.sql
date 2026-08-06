@@ -95,8 +95,23 @@ CREATE POLICY "notas_fiscais_insert"
 CREATE POLICY "notas_fiscais_update"
   ON public.notas_fiscais FOR UPDATE
   TO authenticated
-  USING (public.is_admin_ativo())
-  WITH CHECK (public.is_admin_ativo());
+  USING (
+    public.is_admin_ativo()
+    OR (
+      public.is_funcionario_ativo()
+      AND auth_user_id = auth.uid()
+      AND origem = 'portal_funcionario'
+    )
+  )
+  WITH CHECK (
+    public.is_admin_ativo()
+    OR (
+      public.is_funcionario_ativo()
+      AND auth_user_id = auth.uid()
+      AND origem = 'portal_funcionario'
+      AND funcionario_id = public.meu_funcionario_id()
+    )
+  );
 
 CREATE POLICY "notas_fiscais_delete"
   ON public.notas_fiscais FOR DELETE
