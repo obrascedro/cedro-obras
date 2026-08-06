@@ -253,25 +253,34 @@ export type DashboardAcompanhamentoStats = {
 };
 
 export async function obterStatsDashboardAcompanhamento(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  options?: { obraId?: string }
 ): Promise<DashboardAcompanhamentoStats> {
   const seteDiasAtras = new Date();
   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
   const desde = seteDiasAtras.toISOString();
 
+  let countQuery = supabase
+    .from("acompanhamento_obras")
+    .select("id", { count: "exact", head: true })
+    .eq("ativo", true)
+    .gte("criado_em", desde);
+
+  let ultimaQuery = supabase
+    .from("acompanhamento_obras")
+    .select(SELECT_RESUMO)
+    .eq("ativo", true)
+    .order("criado_em", { ascending: false })
+    .limit(1);
+
+  if (options?.obraId) {
+    countQuery = countQuery.eq("obra_id", options.obraId);
+    ultimaQuery = ultimaQuery.eq("obra_id", options.obraId);
+  }
+
   const [{ count }, { data: ultima }] = await Promise.all([
-    supabase
-      .from("acompanhamento_obras")
-      .select("id", { count: "exact", head: true })
-      .eq("ativo", true)
-      .gte("criado_em", desde),
-    supabase
-      .from("acompanhamento_obras")
-      .select(SELECT_RESUMO)
-      .eq("ativo", true)
-      .order("criado_em", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    countQuery,
+    ultimaQuery.maybeSingle(),
   ]);
 
   if (!ultima) {

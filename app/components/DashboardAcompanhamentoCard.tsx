@@ -4,11 +4,19 @@ import type { DashboardAcompanhamentoStats } from "@/lib/acompanhamento-obras/li
 
 type DashboardAcompanhamentoCardProps = {
   stats: DashboardAcompanhamentoStats;
+  obraFiltradaId?: string | null;
+  obraFiltradaNome?: string | null;
 };
 
 export default function DashboardAcompanhamentoCard({
   stats,
+  obraFiltradaId,
+  obraFiltradaNome,
 }: DashboardAcompanhamentoCardProps) {
+  const linkHref = obraFiltradaId
+    ? `/acompanhamento-obras?obra=${encodeURIComponent(obraFiltradaId)}`
+    : "/acompanhamento-obras";
+
   return (
     <section className="cedro-card p-5">
       <div className="flex items-start gap-3">
@@ -19,6 +27,11 @@ export default function DashboardAcompanhamentoCard({
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
             Atualizações de obra
           </h2>
+          {obraFiltradaNome ? (
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Obra: <span className="font-medium">{obraFiltradaNome}</span>
+            </p>
+          ) : null}
           <p className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             {stats.totalUltimos7Dias}
           </p>
@@ -32,11 +45,13 @@ export default function DashboardAcompanhamentoCard({
             </p>
           ) : (
             <p className="mt-3 text-sm text-zinc-500">
-              Nenhuma atualização registrada ainda.
+              {obraFiltradaNome
+                ? "Nenhuma atualização registrada para esta obra nos últimos 7 dias."
+                : "Nenhuma atualização registrada ainda."}
             </p>
           )}
           <Link
-            href="/acompanhamento-obras"
+            href={linkHref}
             className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--cedro-brown)] hover:underline"
           >
             Ver acompanhamento

@@ -1,110 +1,79 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import PageShell from "@/app/components/PageShell";
 import DashboardAcompanhamentoCard from "@/app/components/DashboardAcompanhamentoCard";
 import DashboardCharts from "@/app/components/DashboardCharts";
 import DashboardNotasPendentes from "@/app/components/DashboardNotasPendentes";
+import DashboardObraFilter from "@/app/components/DashboardObraFilter";
 import MetricCard from "@/app/components/ui/MetricCard";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAppSession } from "@/lib/auth";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { agruparGastosPorEtapaDetalhado } from "@/lib/gastos-etapa";
+import { carregarDashboardData } from "@/lib/dashboard-data";
 import {
-  agruparPorCampo,
+  calcularPercentualOrcamentoUtilizado,
+  listarObrasParaFiltroDashboard,
+  resolverFiltroObraDashboard,
+} from "@/lib/dashboard-filtro";
+import {
   alertaBadgeClass,
-  buildUltimoGastoPorObra,
-  calcularLucro,
-  gerarAlertasDashboard,
   getObraNome,
-  type GastoDashboard,
-  type GastoRecente,
-  type ObraDashboard,
 } from "@/lib/dashboard";
-import { obterStatsDashboardAcompanhamento } from "@/lib/acompanhamento-obras/listar";
 
-export default async function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<{ obra?: string }>;
+};
+
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const params = await searchParams;
   const session = await getAppSession();
   const supabase = await createSupabaseServerClient();
-  const [
-    { data: obras, error: obrasError },
-    { data: gastos, error: gastosError },
-    { data: gastosRecentes, error: gastosRecentesError },
-    { data: notasFiscais, error: notasError },
-    statsAcompanhamento,
-  ] = await Promise.all([
-    supabase
-      .from("obras")
-      .select(
-        "id, nome, status, orcamento_previsto, valor_recebido, gasto_realizado, lucro_estimado, data_previsao_termino, clientes(nome)"
-      )
-      .order("data_inicio", { ascending: false }),
-    supabase
-      .from("gastos_obra")
-      .select(
-        "obra_id, etapa, categoria, valor_total, data_gasto, criado_em"
-      )
-      .order("criado_em", { ascending: false })
-      .limit(2000),
-    supabase
-      .from("gastos_obra")
-      .select(
-        "id, data_gasto, descricao, etapa, valor_total, obra_id, obras(nome)"
-      )
-      .order("data_gasto", { ascending: false })
-      .limit(10),
-    supabase
-      .from("notas_fiscais")
-      .select("status_processamento, valor_total, itens_json")
-      .order("criado_em", { ascending: false })
-      .limit(500),
-    obterStatsDashboardAcompanhamento(supabase).catch(() => ({
-      totalUltimos7Dias: 0,
-      ultimaObraNome: null,
-      ultimoFuncionarioNome: null,
-    })),
-  ]);
 
-  const obrasLista = (obras ?? []) as ObraDashboard[];
-  const gastosLista = (gastos ?? []) as GastoDashboard[];
-  const movimentacoes = (gastosRecentes ?? []) as GastoRecente[];
+  const obrasOpcoes = await listarObrasParaFiltroDashboard(supabase);
+  const filtro = await resolverFiltroObraDashboard(
+    supabase,
+    params.obra,
+    obrasOpcoes
+  );
 
-  const valorContratado = obrasLista.reduce(
-    (sum, obra) => sum + (obra.orcamento_previsto ?? 0),
-    0
-  );
-  const totalRecebido = obrasLista.reduce(
-    (sum, obra) => sum + (obra.valor_recebido ?? 0),
-    0
-  );
-  const gastoRealizado = obrasLista.reduce(
-    (sum, obra) => sum + (obra.gasto_realizado ?? 0),
-    0
-  );
-  const lucroEstimado = obrasLista.reduce(
-    (sum, obra) => sum + calcularLucro(obra),
-    0
-  );
-  const totalObras = obrasLista.length;
-  const obrasEmAndamento = obrasLista.filter(
-    (obra) => obra.status === "Em andamento"
-  ).length;
-  const obrasConcluidas = obrasLista.filter(
-    (obra) => obra.status === "Concluída"
-  ).length;
+  if (filtro.redirectParaTodas) {
+    redirect("/dashboard");
+  }
 
-  const gastosPorEtapa = agruparGastosPorEtapaDetalhado(gastosLista);
-  const gastosPorCategoria = agruparPorCampo(gastosLista, "categoria");
-  const ultimoGastoPorObra = buildUltimoGastoPorObra(gastosLista);
-  const alertas = gerarAlertasDashboard(obrasLista, ultimoGastoPorObra);
+  const data = await carregarDashboardData(supabase, filtro.obraId);
+  const obraSelecionada = filtro.obraSelecionada;
+  const obraFiltrada = Boolean(filtro.obraId);
+  const obraAtual = data.obrasLista[0] ?? null;
 
   const greeting = session?.nome
     ? `Bem-vindo, ${session.nome}!`
     : "Bem-vindo!";
 
+  const pageTitle = obraSelecionada
+    ? `Dashboard — ${obraSelecionada.nome}`
+    : "Dashboard";
+
+  const pageDescription = obraSelecionada
+    ? `Indicadores financeiros e operacionais da obra ${obraSelecionada.nome}.`
+    : "Visão geral das obras, gastos e alertas do sistema.";
+
+  const percentualOrcamento = obraAtual
+    ? calcularPercentualOrcamentoUtilizado(
+        obraAtual.orcamento_previsto,
+        data.metricas.gastoRealizado
+      )
+    : null;
+
+  const semGastosObra =
+    obraFiltrada && data.gastosLista.length === 0 && !data.errors.gastos;
+
   return (
     <PageShell
-      title="Dashboard"
+      title={pageTitle}
       greeting={greeting}
-      description="Visão geral das obras, gastos e alertas do sistema."
+      description={pageDescription}
       maxWidth="full"
       action={
         <Link href="/obras/nova" className="cedro-btn-primary px-4 py-2.5 text-sm">
@@ -112,39 +81,56 @@ export default async function DashboardPage() {
         </Link>
       }
     >
-      <div className="flex flex-col gap-6">
-        {obrasError ? (
-          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
-            Erro ao carregar obras: {obrasError.message}
+      <DashboardObraFilter
+        obras={obrasOpcoes}
+        obraSelecionadaId={filtro.obraId}
+        obraSelecionadaNome={obraSelecionada?.nome ?? null}
+      >
+        {semGastosObra ? (
+          <div className="rounded-xl border border-dashed border-[var(--cedro-border)] bg-[var(--cedro-bg)] p-4 text-sm text-[var(--cedro-text-muted)]">
+            Ainda não existem gastos cadastrados para esta obra.
           </div>
         ) : null}
 
-        {gastosError ? (
+        {data.errors.obras ? (
           <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
-            Erro ao carregar gastos: {gastosError.message}
+            Erro ao carregar obras: {data.errors.obras}
           </div>
         ) : null}
 
-        {gastosRecentesError ? (
+        {data.errors.gastos ? (
           <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
-            Erro ao carregar movimentações: {gastosRecentesError.message}
+            Erro ao carregar gastos: {data.errors.gastos}
           </div>
         ) : null}
 
-        {notasError ? (
+        {data.errors.gastosRecentes ? (
           <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
-            Erro ao carregar notas fiscais: {notasError.message}
+            Erro ao carregar movimentações: {data.errors.gastosRecentes}
+          </div>
+        ) : null}
+
+        {data.errors.notas ? (
+          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
+            Erro ao carregar notas fiscais: {data.errors.notas}
           </div>
         ) : (
-          <DashboardNotasPendentes notas={notasFiscais ?? []} />
+          <DashboardNotasPendentes
+            notas={data.notasFiscais}
+            obraFiltradaNome={obraSelecionada?.nome ?? null}
+          />
         )}
 
-        <DashboardAcompanhamentoCard stats={statsAcompanhamento} />
+        <DashboardAcompanhamentoCard
+          stats={data.statsAcompanhamento}
+          obraFiltradaId={filtro.obraId}
+          obraFiltradaNome={obraSelecionada?.nome ?? null}
+        />
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Valor contratado"
-            value={formatCurrency(valorContratado)}
+            value={formatCurrency(data.metricas.valorContratado)}
             iconBg="brown"
             icon={
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
@@ -154,7 +140,7 @@ export default async function DashboardPage() {
           />
           <MetricCard
             label="Valor recebido"
-            value={formatCurrency(totalRecebido)}
+            value={formatCurrency(data.metricas.totalRecebido)}
             iconBg="teal"
             icon={
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
@@ -164,7 +150,7 @@ export default async function DashboardPage() {
           />
           <MetricCard
             label="Gasto realizado"
-            value={formatCurrency(gastoRealizado)}
+            value={formatCurrency(data.metricas.gastoRealizado)}
             iconBg="orange"
             icon={
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
@@ -174,10 +160,10 @@ export default async function DashboardPage() {
           />
           <MetricCard
             label="Lucro estimado"
-            value={formatCurrency(lucroEstimado)}
+            value={formatCurrency(data.metricas.lucroEstimado)}
             iconBg="green"
             valueClassName={
-              lucroEstimado >= 0
+              data.metricas.lucroEstimado >= 0
                 ? "text-[var(--cedro-success)]"
                 : "text-[var(--cedro-error)]"
             }
@@ -189,15 +175,55 @@ export default async function DashboardPage() {
           />
         </section>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <MetricCard label="Número de obras" value={String(totalObras)} iconBg="brown" />
-          <MetricCard label="Obras em andamento" value={String(obrasEmAndamento)} iconBg="teal" />
-          <MetricCard label="Obras concluídas" value={String(obrasConcluidas)} iconBg="green" />
-        </section>
+        {obraFiltrada && obraAtual ? (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <MetricCard
+              label="Status da obra"
+              value={obraAtual.status}
+              iconBg="teal"
+            />
+            <MetricCard
+              label="Orçamento utilizado"
+              value={
+                percentualOrcamento != null
+                  ? `${percentualOrcamento}%`
+                  : "—"
+              }
+              iconBg="orange"
+            />
+            <MetricCard
+              label="Previsão de término"
+              value={
+                obraAtual.data_previsao_termino
+                  ? formatDate(obraAtual.data_previsao_termino)
+                  : "Não informada"
+              }
+              iconBg="brown"
+            />
+          </section>
+        ) : (
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <MetricCard
+              label="Número de obras"
+              value={String(data.metricas.totalObras)}
+              iconBg="brown"
+            />
+            <MetricCard
+              label="Obras em andamento"
+              value={String(data.metricas.obrasEmAndamento)}
+              iconBg="teal"
+            />
+            <MetricCard
+              label="Obras concluídas"
+              value={String(data.metricas.obrasConcluidas)}
+              iconBg="green"
+            />
+          </section>
+        )}
 
         <DashboardCharts
-          gastosPorEtapa={gastosPorEtapa}
-          gastosPorCategoria={gastosPorCategoria}
+          gastosPorEtapa={data.gastosPorEtapa}
+          gastosPorCategoria={data.gastosPorCategoria}
         />
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -207,13 +233,17 @@ export default async function DashboardPage() {
                 Últimas movimentações
               </h2>
               <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
-                Gastos mais recentes cadastrados no sistema.
+                {obraFiltrada
+                  ? "Gastos mais recentes desta obra."
+                  : "Gastos mais recentes cadastrados no sistema."}
               </p>
             </div>
 
-            {movimentacoes.length === 0 ? (
+            {data.movimentacoes.length === 0 ? (
               <p className="p-6 text-sm text-[var(--cedro-text-muted)]">
-                Nenhuma movimentação registrada ainda.
+                {obraFiltrada
+                  ? "Nenhuma movimentação registrada para esta obra."
+                  : "Nenhuma movimentação registrada ainda."}
               </p>
             ) : (
               <div className="cedro-table-wrap">
@@ -230,7 +260,7 @@ export default async function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {movimentacoes.map((gasto) => (
+                    {data.movimentacoes.map((gasto) => (
                       <tr key={gasto.id}>
                         <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                           {formatDate(gasto.data_gasto)}
@@ -265,16 +295,20 @@ export default async function DashboardPage() {
               Alertas
             </h2>
             <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
-              Obras que precisam de atenção.
+              {obraFiltrada
+                ? "Situações que precisam de atenção nesta obra."
+                : "Obras que precisam de atenção."}
             </p>
 
-            {alertas.length === 0 ? (
+            {data.alertas.length === 0 ? (
               <p className="mt-4 text-sm text-[var(--cedro-text-muted)]">
-                Nenhum alerta no momento.
+                {obraFiltrada
+                  ? "Nenhum alerta para esta obra no momento."
+                  : "Nenhum alerta no momento."}
               </p>
             ) : (
               <ul className="mt-4 space-y-3">
-                {alertas.map((alerta) => (
+                {data.alertas.map((alerta) => (
                   <li
                     key={alerta.id}
                     className={`rounded-xl border px-4 py-3 ${alertaBadgeClass(alerta.tipo)}`}
@@ -292,7 +326,7 @@ export default async function DashboardPage() {
             )}
           </div>
         </section>
-      </div>
+      </DashboardObraFilter>
     </PageShell>
   );
 }
