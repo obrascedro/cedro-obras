@@ -15,7 +15,10 @@ function normalizarTexto(texto: string): string {
     .toLowerCase();
 }
 
-function encontrarNaLista<T extends string>(valor: string, lista: readonly T[]): T | null {
+function encontrarNaLista<T extends string>(
+  valor: string,
+  lista: readonly T[]
+): T | null {
   const normalizado = normalizarTexto(valor);
   const exato = lista.find((item) => normalizarTexto(item) === normalizado);
   if (exato) return exato;
@@ -31,19 +34,35 @@ export function normalizarCategoria(valor: unknown): CategoriaNotaFiscal {
   if (typeof valor !== "string" || !valor.trim()) return CATEGORIA_PADRAO;
 
   const aliases: Record<string, CategoriaNotaFiscal> = {
-    equipamentos: "Equipamento",
-    equipamento: "Equipamento",
+    equipamentos: "Equipamentos",
+    equipamento: "Equipamentos",
     fretes: "Frete",
-    terceiros: "Serviço terceirizado",
-    "servico terceirizado": "Serviço terceirizado",
-    "serviço terceirizado": "Serviço terceirizado",
+    frete: "Frete",
+    terceiros: "Terceirizados",
+    terceirizado: "Terceirizados",
+    "servico terceirizado": "Terceirizados",
+    "serviço terceirizado": "Terceirizados",
     "mao de obra": "Mão de obra",
     "mão de obra": "Mão de obra",
-    imposto: "Impostos e taxas",
-    taxa: "Impostos e taxas",
-    projeto: "Projeto e documentação",
-    documentacao: "Projeto e documentação",
-    documentação: "Projeto e documentação",
+    imposto: "Taxas",
+    impostos: "Taxas",
+    taxa: "Taxas",
+    "impostos e taxas": "Taxas",
+    projeto: "Projeto",
+    documentacao: "Documentação",
+    documentação: "Documentação",
+    "projeto e documentacao": "Projeto",
+    "projeto e documentação": "Projeto",
+    transporte: "Transporte",
+    locacao: "Locação",
+    locação: "Locação",
+    combustivel: "Combustível",
+    combustível: "Combustível",
+    administrativo: "Administrativo",
+    migracao: "Histórico/Migração",
+    migração: "Histórico/Migração",
+    "historico/migracao": "Histórico/Migração",
+    "histórico/migração": "Histórico/Migração",
   };
 
   const chave = normalizarTexto(valor);
@@ -56,14 +75,27 @@ export function normalizarEtapa(valor: unknown): EtapaNotaFiscal {
   if (typeof valor !== "string" || !valor.trim()) return ETAPA_PADRAO;
 
   const aliases: Record<string, EtapaNotaFiscal> = {
-    eletrica: "Instalações elétricas",
-    elétrica: "Instalações elétricas",
-    hidraulica: "Instalações hidráulicas",
-    hidráulica: "Instalações hidráulicas",
-    estrutura: "Superestrutura",
+    eletrica: "Instalação elétrica",
+    elétrica: "Instalação elétrica",
+    "instalacoes eletricas": "Instalação elétrica",
+    "instalações elétricas": "Instalação elétrica",
+    hidraulica: "Instalação hidráulica",
+    hidráulica: "Instalação hidráulica",
+    "instalacoes hidraulicas": "Instalação hidráulica",
+    "instalações hidráulicas": "Instalação hidráulica",
+    estrutura: "Estrutura",
+    superestrutura: "Estrutura",
     acabamentos: "Acabamento",
-    "nao classificado": "Não classificado",
-    "não classificado": "Não classificado",
+    revestimentos: "Revestimento",
+    pisos: "Revestimento",
+    impermeabilizacao: "Revestimento",
+    impermeabilização: "Revestimento",
+    "servicos preliminares": "Planejamento",
+    "serviços preliminares": "Planejamento",
+    "nao classificado": ETAPA_PADRAO,
+    "não classificado": ETAPA_PADRAO,
+    administrativo: "Administrativo",
+    geral: "Geral",
   };
 
   const chave = normalizarTexto(valor);
@@ -86,4 +118,5 @@ export type FonteClassificacao =
   | "catalogo"
   | "ia"
   | "regra"
-  | "padrao";
+  | "padrao"
+  | "funcionario";

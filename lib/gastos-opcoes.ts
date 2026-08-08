@@ -1,3 +1,7 @@
+/**
+ * Listas canônicas de etapa e categoria de gasto.
+ * Usadas em: cadastro/edição de gastos, notas fiscais, portal e relatórios.
+ */
 export const ETAPAS_GASTO = [
   "Planejamento",
   "Limpeza do terreno",
@@ -43,3 +47,11 @@ export const CATEGORIAS_GASTO = [
 
 export type EtapaGasto = (typeof ETAPAS_GASTO)[number];
 export type CategoriaGasto = (typeof CATEGORIAS_GASTO)[number];
+
+export function isEtapaGasto(valor: string): valor is EtapaGasto {
+  return (ETAPAS_GASTO as readonly string[]).includes(valor);
+}
+
+export function isCategoriaGasto(valor: string): valor is CategoriaGasto {
+  return (CATEGORIAS_GASTO as readonly string[]).includes(valor);
+}

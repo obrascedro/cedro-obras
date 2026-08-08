@@ -2,10 +2,15 @@ import {
   CATALOGO_OBRA,
   type EntradaCatalogoObra,
 } from "@/lib/nota-fiscal-catalogo-data";
-import type {
-  CategoriaNotaFiscal,
-  EtapaNotaFiscal,
+import {
+  ETAPA_PADRAO,
+  type CategoriaNotaFiscal,
+  type EtapaNotaFiscal,
 } from "@/lib/nota-fiscal-constants";
+import {
+  normalizarCategoria,
+  normalizarEtapa,
+} from "@/lib/nota-fiscal-normalizacao";
 
 export type ResultadoCatalogo = {
   categoria: CategoriaNotaFiscal;
@@ -54,17 +59,18 @@ function montarResultadoCatalogo(
   termoEncontrado: string,
   matchExato: boolean
 ): ResultadoCatalogo {
+  const etapaNormalizada = normalizarEtapa(entrada.etapa);
   const confianca = matchExato ? 1 : 0.98;
   const confEtapa =
-    entrada.etapa === "Não classificado"
+    etapaNormalizada === ETAPA_PADRAO
       ? matchExato
         ? 0.85
         : 0.82
       : confianca;
 
   return {
-    categoria: entrada.categoria,
-    etapa: entrada.etapa,
+    categoria: normalizarCategoria(entrada.categoria),
+    etapa: etapaNormalizada,
     unidade: entrada.unidade,
     termoEncontrado,
     confianca_categoria: confianca,

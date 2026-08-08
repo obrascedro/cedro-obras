@@ -17,6 +17,10 @@ export type AtualizarNotaAposLeituraParams = {
   observacoes?: string;
   leitura?: NotaFiscalLeitura;
   enviadoPorNome?: string;
+  classificacaoFuncionario?: {
+    etapa: string;
+    categoria: string;
+  };
 };
 
 export async function atualizarStatusNotaFiscalServer(
@@ -70,6 +74,11 @@ export async function atualizarNotaAposLeituraServer(
         cnpj: params.leitura.cnpj,
         data: params.leitura.data,
         valor_total: params.leitura.valor_total,
+        ...(params.classificacaoFuncionario
+          ? {
+              classificacao_funcionario: params.classificacaoFuncionario,
+            }
+          : {}),
       }
     : null;
 

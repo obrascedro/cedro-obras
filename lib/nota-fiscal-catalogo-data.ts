@@ -1,13 +1,9 @@
-import type {
-  CategoriaNotaFiscal,
-  EtapaNotaFiscal,
-} from "@/lib/nota-fiscal-constants";
 import { expandirCatalogoObra } from "@/lib/nota-fiscal-catalogo-build";
 
 export type EntradaCatalogoObra = {
   termo: string;
-  categoria: CategoriaNotaFiscal;
-  etapa: EtapaNotaFiscal;
+  categoria: string;
+  etapa: string;
   unidade?: string;
   sinonimos?: string[];
 };

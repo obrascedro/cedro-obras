@@ -26,6 +26,7 @@ import {
   NOTAS_FISCAIS_MAX_SIZE_BYTES,
   type ObraOption,
 } from "@/lib/notas-fiscais";
+import { CATEGORIAS_GASTO, ETAPAS_GASTO } from "@/lib/gastos-opcoes";
 
 type PortalNotasEnvioFormProps = {
   obras: ObraOption[];
@@ -47,6 +48,8 @@ export default function PortalNotasEnvioForm({
   );
   const [isSubmitting, startSubmitTransition] = useTransition();
   const [obraId, setObraId] = useState("");
+  const [etapa, setEtapa] = useState("");
+  const [categoria, setCategoria] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -108,6 +111,14 @@ export default function PortalNotasEnvioForm({
       setErroLocal("Selecione a obra.");
       return;
     }
+    if (!etapa) {
+      setErroLocal("Selecione a etapa.");
+      return;
+    }
+    if (!categoria) {
+      setErroLocal("Selecione a categoria.");
+      return;
+    }
     if (!arquivo || arquivo.size === 0) {
       setErroLocal("Tire uma foto ou escolha um arquivo.");
       return;
@@ -121,6 +132,8 @@ export default function PortalNotasEnvioForm({
 
     const fd = new FormData();
     fd.set("obraId", obraId);
+    fd.set("etapa", etapa);
+    fd.set("categoria", categoria);
     fd.set("observacoes", observacoes);
     fd.set("arquivo", arquivo, arquivo.name);
 
@@ -135,6 +148,8 @@ export default function PortalNotasEnvioForm({
         resultado={state.sucesso}
         onNovaNota={() => {
           limparArquivo();
+          setEtapa("");
+          setCategoria("");
           onNovaNota();
         }}
       />
@@ -182,6 +197,52 @@ export default function PortalNotasEnvioForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="etapa" className={fieldLabelClass}>
+              Etapa <span className="text-[var(--cedro-brown)]">*</span>
+            </label>
+            <select
+              id="etapa"
+              name="etapa"
+              required
+              value={etapa}
+              onChange={(e) => setEtapa(e.target.value)}
+              disabled={enviando}
+              className={`mt-2 ${selectClassName}`}
+            >
+              <option value="">Selecione a etapa</option>
+              {ETAPAS_GASTO.map((opcao) => (
+                <option key={opcao} value={opcao}>
+                  {opcao}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="categoria" className={fieldLabelClass}>
+              Categoria <span className="text-[var(--cedro-brown)]">*</span>
+            </label>
+            <select
+              id="categoria"
+              name="categoria"
+              required
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              disabled={enviando}
+              className={`mt-2 ${selectClassName}`}
+            >
+              <option value="">Selecione a categoria</option>
+              {CATEGORIAS_GASTO.map((opcao) => (
+                <option key={opcao} value={opcao}>
+                  {opcao}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
@@ -303,6 +364,18 @@ function PortalNotasConfirmacao({
           <dt className="text-[var(--cedro-text-muted)]">Obra</dt>
           <dd className="font-medium text-[var(--cedro-text)]">
             {resultado.obraNome}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-[var(--cedro-text-muted)]">Etapa</dt>
+          <dd className="font-medium text-[var(--cedro-text)]">
+            {resultado.etapa}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-[var(--cedro-text-muted)]">Categoria</dt>
+          <dd className="font-medium text-[var(--cedro-text)]">
+            {resultado.categoria}
           </dd>
         </div>
         <div className="flex justify-between gap-4">

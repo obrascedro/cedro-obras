@@ -1,10 +1,10 @@
-import {
-  CATEGORIAS_NOTA_FISCAL,
-  ETAPAS_NOTA_FISCAL,
-} from "@/lib/nota-fiscal-constants";
 import { enriquecerClassificacaoItem } from "@/lib/nota-fiscal-classificacao";
 import type { ContextoClassificacao } from "@/lib/nota-fiscal-classificacao";
 import type { FonteClassificacao } from "@/lib/nota-fiscal-normalizacao";
+import {
+  CATEGORIA_PADRAO,
+  ETAPA_PADRAO,
+} from "@/lib/nota-fiscal-constants";
 import { precisaClassificacaoIA } from "@/lib/gastos-classificacao-motor";
 import { classificarItensDesconhecidosComOpenAI } from "@/lib/openai-classificacao-gastos";
 
@@ -153,8 +153,8 @@ function parseItemBasico(item: unknown): NotaFiscalItemExtraido {
     valor_unitario:
       valorUnitario || (quantidade > 0 ? valorTotal / quantidade : 0),
     valor_total: valorTotal,
-    categoria: "Outros",
-    etapa: "Não classificado",
+    categoria: CATEGORIA_PADRAO,
+    etapa: ETAPA_PADRAO,
     confianca_categoria: 0,
     confianca_etapa: 0,
     necessita_revisao: true,
@@ -343,8 +343,8 @@ export function criarItemVazio(): NotaFiscalItemExtraido {
     unidade: "UN",
     valor_unitario: 0,
     valor_total: 0,
-    categoria: "Material",
-    etapa: "Não classificado",
+    categoria: CATEGORIA_PADRAO,
+    etapa: ETAPA_PADRAO,
     confianca_categoria: 1,
     confianca_etapa: 1,
     necessita_revisao: false,

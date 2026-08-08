@@ -59,7 +59,7 @@ const REGRAS_FALLBACK: RegraClassificacao[] = [
   {
     termos: ["ferro", "pilar", "viga", "laje", "escoramento", "armadura", "vergalhao", "vergalhão", "aco ca50", "aço ca50"],
     categoria: "Material",
-    etapa: "Superestrutura",
+    etapa: "Estrutura",
     confianca: 0.82,
   },
   {
@@ -77,19 +77,19 @@ const REGRAS_FALLBACK: RegraClassificacao[] = [
   {
     termos: ["fio", "cabo", "disjuntor", "quadro eletrico", "quadro elétrico", "tomada"],
     categoria: "Material",
-    etapa: "Instalações elétricas",
+    etapa: "Instalação elétrica",
     confianca: 0.82,
   },
   {
     termos: ["tubo", "conexao", "conexão", "caixa dagua", "caixa d'água", "registro", "torneira"],
     categoria: "Material",
-    etapa: "Instalações hidráulicas",
+    etapa: "Instalação hidráulica",
     confianca: 0.82,
   },
   {
     termos: ["manta asfaltica", "manta asfáltica", "impermeabilizante", "sika"],
     categoria: "Material",
-    etapa: "Impermeabilização",
+    etapa: "Revestimento",
     confianca: 0.82,
   },
   {
@@ -106,9 +106,15 @@ const REGRAS_FALLBACK: RegraClassificacao[] = [
   },
   {
     termos: ["betoneira", "escavadeira", "bobcat", "aluguel de maquina", "aluguel de máquina"],
-    categoria: "Equipamento",
+    categoria: "Equipamentos",
     etapa: ETAPA_PADRAO,
     confianca: 0.82,
+  },
+  {
+    termos: ["combustivel", "combustível", "gasolina", "diesel", "etanol", "posto"],
+    categoria: "Combustível",
+    etapa: "Administrativo",
+    confianca: 0.9,
   },
   {
     termos: ["pedreiro", "servente", "diaria", "diária", "quinzena", "mao de obra", "mão de obra"],

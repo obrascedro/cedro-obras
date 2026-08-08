@@ -10,6 +10,10 @@ import {
 } from "@/lib/nota-fiscal-ia";
 import { validarConfirmacao } from "@/lib/nota-fiscal-validacao";
 import {
+  CATEGORIA_PADRAO,
+  ETAPA_PADRAO,
+} from "@/lib/nota-fiscal-constants";
+import {
   isPendenteAprovacao,
   STATUS_APROVADA,
   STATUS_PENDENTE_APROVACAO,
@@ -81,8 +85,8 @@ export async function aprovarNotaFiscalServer(
 
   const gastosPayload = itensParaGravar.map((item) => ({
     obra_id: params.obraId,
-    etapa: item.etapa.trim() || "Não classificado",
-    categoria: item.categoria.trim() || "Outros",
+    etapa: item.etapa.trim() || ETAPA_PADRAO,
+    categoria: item.categoria.trim() || CATEGORIA_PADRAO,
     descricao: formatDescricaoComUnidade(item),
     fornecedor: params.fornecedor.trim() || null,
     quantidade: item.quantidade,

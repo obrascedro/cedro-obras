@@ -11,6 +11,10 @@ import { obterEstatisticasCatalogo } from "@/lib/nota-fiscal-catalogo";
 import { NOTAS_FISCAIS_BUCKET } from "@/lib/notas-fiscais";
 import type { AlertasLeitura } from "@/lib/nota-fiscal-validacao";
 import type { NotaFiscalLeitura } from "@/lib/nota-fiscal-ia";
+import {
+  aplicarClassificacaoFuncionarioNaLeitura,
+  parseClassificacaoFuncionarioNota,
+} from "@/lib/portal-notas/classificacao-funcionario";
 
 export type ProcessarNotaFiscalParams = {
   storagePath: string;
@@ -19,6 +23,10 @@ export type ProcessarNotaFiscalParams = {
   notaId: string;
   observacoes?: string;
   enviadoPorNome?: string;
+  classificacaoFuncionario?: {
+    etapa: string;
+    categoria: string;
+  };
 };
 
 export type ProcessarNotaFiscalResultado = {
@@ -65,7 +73,7 @@ export async function processarNotaFiscalComIA(
     catalogo: catalogoStats.totalEntradas,
   });
 
-  const leitura = await lerNotaFiscalComOpenAI(
+  const leituraBase = await lerNotaFiscalComOpenAI(
     {
       mimeType,
       fileName,
@@ -73,6 +81,17 @@ export async function processarNotaFiscalComIA(
     },
     { aprendidas }
   );
+
+  const classificacaoFuncionario = params.classificacaoFuncionario
+    ? parseClassificacaoFuncionarioNota(
+        params.classificacaoFuncionario.etapa,
+        params.classificacaoFuncionario.categoria
+      )
+    : null;
+
+  const leitura = classificacaoFuncionario
+    ? aplicarClassificacaoFuncionarioNaLeitura(leituraBase, classificacaoFuncionario)
+    : leituraBase;
 
   const alertas = validarLeituraNotaFiscal(leitura);
 
@@ -85,6 +104,7 @@ export async function processarNotaFiscalComIA(
     observacoes,
     leitura,
     enviadoPorNome,
+    classificacaoFuncionario: classificacaoFuncionario ?? undefined,
   });
 
   logNotaFiscal("pipeline.sucesso", {

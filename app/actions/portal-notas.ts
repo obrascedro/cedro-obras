@@ -16,6 +16,10 @@ import { PORTAL_NOTAS_RATE_LIMIT } from "@/lib/portal-notas/config";
 import { salvarNotaPortalNoStorage } from "@/lib/portal-notas/salvar-nota";
 import { lerBufferArquivoPortal } from "@/lib/portal-notas/validar-arquivo";
 import { funcionarioPodeEnviarNotaParaObra } from "@/lib/portal-notas/obras-funcionario";
+import {
+  isCategoriaGasto,
+  isEtapaGasto,
+} from "@/lib/gastos-opcoes";
 
 export type PortalNotasEnvioResultado = {
   ok: true;
@@ -23,6 +27,8 @@ export type PortalNotasEnvioResultado = {
   notaReferencia: string;
   obraNome: string;
   enviadoEm: string;
+  etapa: string;
+  categoria: string;
 };
 
 export type PortalNotasEnvioState = {
@@ -102,6 +108,8 @@ export async function portalNotasEnviarAction(
   }
 
   const obraId = String(formData.get("obraId") ?? "").trim();
+  const etapa = String(formData.get("etapa") ?? "").trim();
+  const categoria = String(formData.get("categoria") ?? "").trim();
   const observacoes = String(formData.get("observacoes") ?? "").trim();
   const arquivo = formData.get("arquivo");
 
@@ -109,6 +117,8 @@ export async function portalNotasEnviarAction(
     userId: session.userId,
     funcionarioId,
     obraId,
+    etapa,
+    categoria,
     arquivoRecebido: arquivo instanceof File,
     tamanho: arquivo instanceof File ? arquivo.size : 0,
     tipo: arquivo instanceof File ? arquivo.type : null,
@@ -116,6 +126,14 @@ export async function portalNotasEnviarAction(
 
   if (!obraId) {
     return { erro: "Selecione a obra." };
+  }
+
+  if (!etapa || !isEtapaGasto(etapa)) {
+    return { erro: "Selecione a etapa." };
+  }
+
+  if (!categoria || !isCategoriaGasto(categoria)) {
+    return { erro: "Selecione a categoria." };
   }
 
   if (!(arquivo instanceof File) || arquivo.size === 0) {
@@ -188,6 +206,7 @@ export async function portalNotasEnviarAction(
       notaId,
       observacoes: observacoes || undefined,
       enviadoPorNome,
+      classificacaoFuncionario: { etapa, categoria },
     });
 
     console.info("[portal-notas] ia.ok", { notaId });
@@ -203,6 +222,8 @@ export async function portalNotasEnviarAction(
         notaReferencia: formatarReferenciaNota(notaId),
         obraNome: obra.nome,
         enviadoEm: salvo.criadoEm,
+        etapa,
+        categoria,
       },
     };
   } catch (error) {
