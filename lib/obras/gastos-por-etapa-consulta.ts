@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { etapasCorrespondem } from "@/lib/gastos-etapa";
+import { isCategoriaMaoDeObra, CATEGORIA_MAO_DE_OBRA } from "@/lib/gastos-mao-de-obra";
 import {
+  listarGastosObra,
   listarGastosObraPorEtapa,
   type GastoObraRow,
 } from "@/lib/gastos-obra";
@@ -126,6 +128,36 @@ function notaPendenteParaLinha(
   };
 }
 
+function notaPendenteMaoDeObraParaLinha(
+  nota: NotaFiscal
+): LinhaFinanceiraEtapa | null {
+  const itens = parseItensNota(nota).filter((item) =>
+    isCategoriaMaoDeObra(item.categoria)
+  );
+
+  if (!itens.length) return null;
+
+  const valor = itens.reduce((sum, item) => sum + (item.valor_total ?? 0), 0);
+  const primeiraDescricao = itens[0]?.descricao || nota.arquivo_nome;
+
+  return {
+    id: `nota-${nota.id}`,
+    tipo: "nota_fiscal",
+    data: nota.data_nota ?? nota.criado_em?.slice(0, 10) ?? null,
+    descricao:
+      itens.length > 1
+        ? `${primeiraDescricao} (+${itens.length - 1} itens)`
+        : primeiraDescricao,
+    fornecedor: nota.fornecedor,
+    categoria: CATEGORIA_MAO_DE_OBRA,
+    etapa: itens.length === 1 ? itens[0].etapa : "Várias etapas",
+    valor,
+    statusNota: nota.status_processamento,
+    origem: formatOrigemNota(nota.origem),
+    nota,
+  };
+}
+
 function ordenarPorDataDesc(linhas: LinhaFinanceiraEtapa[]): LinhaFinanceiraEtapa[] {
   return [...linhas].sort((a, b) => {
     const dataA = a.data ?? "";
@@ -162,6 +194,44 @@ export async function consultarGastosPorEtapaObra(
   const linhasNota = notas
     .filter((nota) => !isAprovada(nota.status_processamento))
     .map((nota) => notaPendenteParaLinha(nota, etapa))
+    .filter((linha): linha is LinhaFinanceiraEtapa => linha !== null);
+
+  const linhas = ordenarPorDataDesc([...linhasGasto, ...linhasNota]);
+  const total = linhas.reduce((sum, linha) => sum + linha.valor, 0);
+
+  return { linhas, total };
+}
+
+export async function consultarGastosMaoDeObraObra(
+  client: SupabaseClient,
+  obraId: string
+): Promise<{ linhas: LinhaFinanceiraEtapa[]; total: number }> {
+  const [gastos, notasResult] = await Promise.all([
+    listarGastosObra(client, obraId),
+    client
+      .from("notas_fiscais")
+      .select(NOTA_FISCAL_SELECT)
+      .eq("obra_id", obraId)
+      .order("criado_em", { ascending: false }),
+  ]);
+
+  if (notasResult.error) {
+    console.error(
+      "[gastos-mao-de-obra] notas.erro",
+      notasResult.error.message
+    );
+    throw notasResult.error;
+  }
+
+  const notas = (notasResult.data ?? []) as NotaFiscal[];
+  const gastosMaoDeObra = gastos.filter((gasto) =>
+    isCategoriaMaoDeObra(gasto.categoria)
+  );
+
+  const linhasGasto = gastosMaoDeObra.map((gasto) => gastoParaLinha(gasto, notas));
+  const linhasNota = notas
+    .filter((nota) => !isAprovada(nota.status_processamento))
+    .map((nota) => notaPendenteMaoDeObraParaLinha(nota))
     .filter((linha): linha is LinhaFinanceiraEtapa => linha !== null);
 
   const linhas = ordenarPorDataDesc([...linhasGasto, ...linhasNota]);

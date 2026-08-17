@@ -2,12 +2,19 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import ObraEtapaGastosClient from "@/app/components/obras/ObraEtapaGastosClient";
 import PageShell from "@/app/components/PageShell";
+import {
+  CATEGORIA_MAO_DE_OBRA,
+  TIPO_CONSULTA_MAO_DE_OBRA,
+} from "@/lib/gastos-mao-de-obra";
+import {
+  consultarGastosMaoDeObraObra,
+  consultarGastosPorEtapaObra,
+} from "@/lib/obras/gastos-por-etapa-consulta";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { consultarGastosPorEtapaObra } from "@/lib/obras/gastos-por-etapa-consulta";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ etapa?: string }>;
+  searchParams: Promise<{ etapa?: string; tipo?: string }>;
 };
 
 export default async function ObraEtapaGastosPage({
@@ -15,10 +22,13 @@ export default async function ObraEtapaGastosPage({
   searchParams,
 }: PageProps) {
   const { id } = await params;
-  const { etapa: etapaParam } = await searchParams;
+  const { etapa: etapaParam, tipo: tipoParam } = await searchParams;
   const etapa = etapaParam?.trim();
+  const tipo = tipoParam?.trim();
 
-  if (!etapa) {
+  const isMaoDeObra = tipo === TIPO_CONSULTA_MAO_DE_OBRA;
+
+  if (!isMaoDeObra && !etapa) {
     redirect(`/obras/${id}`);
   }
 
@@ -33,7 +43,7 @@ export default async function ObraEtapaGastosPage({
   if (obraError) {
     return (
       <PageShell
-        title="Gastos por etapa"
+        title="Gastos da obra"
         maxWidth="full"
         action={
           <Link
@@ -55,13 +65,18 @@ export default async function ObraEtapaGastosPage({
     notFound();
   }
 
-  let linhas: Awaited<ReturnType<typeof consultarGastosPorEtapaObra>>["linhas"] =
-    [];
+  const rotuloConsulta = isMaoDeObra ? CATEGORIA_MAO_DE_OBRA : etapa!;
+
+  let linhas: Awaited<
+    ReturnType<typeof consultarGastosPorEtapaObra>
+  >["linhas"] = [];
   let total = 0;
   let consultaError: Error | null = null;
 
   try {
-    const resultado = await consultarGastosPorEtapaObra(supabase, id, etapa);
+    const resultado = isMaoDeObra
+      ? await consultarGastosMaoDeObraObra(supabase, id)
+      : await consultarGastosPorEtapaObra(supabase, id, etapa!);
     linhas = resultado.linhas;
     total = resultado.total;
   } catch (error) {
@@ -72,7 +87,7 @@ export default async function ObraEtapaGastosPage({
   return (
     <PageShell
       title={obra.nome}
-      description={`Consulta de gastos — ${etapa}`}
+      description={`Consulta de gastos — ${rotuloConsulta}`}
       maxWidth="full"
       action={
         <Link
@@ -91,7 +106,7 @@ export default async function ObraEtapaGastosPage({
         <ObraEtapaGastosClient
           obraId={id}
           obraNome={obra.nome}
-          etapa={etapa}
+          etapa={rotuloConsulta}
           linhas={linhas}
           total={total}
         />

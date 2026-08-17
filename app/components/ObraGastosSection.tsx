@@ -9,6 +9,7 @@ import GastoEditarModal from "@/app/components/GastoEditarModal";
 import GastoForm from "@/app/components/GastoForm";
 import { btnPrimarySmClassName } from "@/app/components/ui/form-styles";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { somarGastosMaoDeObra, urlGastosMaoDeObraObra } from "@/lib/gastos-mao-de-obra";
 import { urlGastosEtapaObra } from "@/lib/gastos-etapa";
 import type { GastoObraRow } from "@/lib/gastos-obra";
 
@@ -42,6 +43,10 @@ export default function ObraGastosSection({
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<GastoObraRow | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const totalMaoDeObra = somarGastosMaoDeObra(gastos);
+  const exibirGastosPorEtapa =
+    gastosPorEtapa.length > 0 || totalMaoDeObra > 0;
 
   function handleExcluir(gastoId: string) {
     if (!confirm("Excluir este gasto? O total da obra será recalculado.")) return;
@@ -89,12 +94,28 @@ export default function ObraGastosSection({
         />
       ) : null}
 
-      {gastosPorEtapa.length > 0 ? (
+      {exibirGastosPorEtapa ? (
         <div className="cedro-card p-6">
           <h3 className="mb-4 text-sm font-semibold tracking-wide text-[var(--cedro-text-muted)] uppercase">
             Gastos por etapa
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {totalMaoDeObra > 0 ? (
+              <Link
+                href={urlGastosMaoDeObraObra(obraId)}
+                className="group rounded-xl border border-[var(--cedro-brown)]/30 bg-[var(--cedro-bg)] px-4 py-3 transition-colors hover:border-[var(--cedro-brown)]/60 hover:bg-[var(--cedro-surface)]"
+              >
+                <p className="text-sm font-semibold text-[var(--cedro-brown)] group-hover:text-[var(--cedro-brown-dark)]">
+                  Mão de obra
+                </p>
+                <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
+                  {formatCurrency(totalMaoDeObra)}
+                </p>
+                <p className="mt-2 text-xs font-medium text-[var(--cedro-text-muted)] group-hover:text-[var(--cedro-brown)]">
+                  Ver detalhes →
+                </p>
+              </Link>
+            ) : null}
             {gastosPorEtapa.map((item) => (
               <Link
                 key={item.etapa}
