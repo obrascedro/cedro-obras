@@ -1,7 +1,7 @@
 import AppLayout from "@/app/components/layout/AppLayout";
 import PageHeader from "@/app/components/ui/PageHeader";
 import { contarNotasPendentesAdminAction } from "@/app/actions/gastos-admin";
-import { getAppSession } from "@/lib/auth";
+import { ADMIN_ROLE, getAppSession } from "@/lib/auth";
 
 type PageShellProps = {
   title: string;
@@ -38,6 +38,7 @@ export default async function PageShell({
   return (
     <AppLayout
       nomeUsuario={session?.nome}
+      isAdmin={session?.role === ADMIN_ROLE && session.ativo}
       notasPendentes={notasPendentes}
       pageTitle={title}
     >

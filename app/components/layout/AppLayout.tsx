@@ -8,6 +8,7 @@ import CedroLogo from "@/app/components/brand/CedroLogo";
 type AppLayoutProps = {
   children: React.ReactNode;
   nomeUsuario?: string;
+  isAdmin?: boolean;
   notasPendentes: number;
   pageTitle?: string;
 };
@@ -15,6 +16,7 @@ type AppLayoutProps = {
 export default function AppLayout({
   children,
   nomeUsuario,
+  isAdmin = false,
   notasPendentes,
   pageTitle,
 }: AppLayoutProps) {
@@ -25,6 +27,7 @@ export default function AppLayout({
     <div className="flex min-h-screen bg-[var(--cedro-bg)]">
       <AppSidebar
         nomeUsuario={nomeUsuario}
+        isAdmin={isAdmin}
         notasPendentes={notasPendentes}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}

@@ -14,6 +14,7 @@ import { APP_SHORT_NAME } from "@/lib/brand";
 
 type AppSidebarProps = {
   nomeUsuario?: string;
+  isAdmin?: boolean;
   notasPendentes: number;
   mobileOpen: boolean;
   onMobileClose: () => void;
@@ -23,6 +24,7 @@ type AppSidebarProps = {
 
 export default function AppSidebar({
   nomeUsuario,
+  isAdmin = false,
   notasPendentes,
   mobileOpen,
   onMobileClose,
@@ -56,13 +58,20 @@ export default function AppSidebar({
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4" aria-label="Principal">
-        {NAV_SECTIONS.map((section) => (
+        {NAV_SECTIONS.map((section) => {
+          const itemsVisiveis = section.items.filter(
+            (item) => !item.adminOnly || isAdmin
+          );
+
+          if (!itemsVisiveis.length) return null;
+
+          return (
           <div key={section.title}>
             {!collapsed ? (
               <p className="cedro-nav-section-title">{section.title}</p>
             ) : null}
             <ul className="mt-1 space-y-0.5">
-              {section.items.map((item) => {
+              {itemsVisiveis.map((item) => {
                 const active = isNavItemActive(pathname, item);
                 const showBadge =
                   item.href === "/financeiro/notas-fiscais" && notasPendentes > 0;
@@ -92,7 +101,8 @@ export default function AppSidebar({
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="border-t border-[var(--cedro-border)] p-3">

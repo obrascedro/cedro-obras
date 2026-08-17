@@ -1,8 +1,10 @@
 export type NavItem = {
   href: string;
   label: string;
-  icon: "dashboard" | "notas" | "admin" | "funcionarios" | "clientes" | "obras" | "acompanhamento" | "financeiro" | "assistente" | "auditoria";
+  icon: "dashboard" | "notas" | "admin" | "funcionarios" | "clientes" | "obras" | "acompanhamento" | "financeiro" | "assistente" | "auditoria" | "anotacoes";
   match?: (pathname: string) => boolean;
+  /** Visível apenas para administradores (não diretoria/funcionário). */
+  adminOnly?: boolean;
 };
 
 export type NavSection = {
@@ -83,6 +85,13 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Sistema",
     items: [
+      {
+        href: "/admin/anotacoes",
+        label: "Anotações",
+        icon: "anotacoes",
+        match: matchPrefix("/admin/anotacoes"),
+        adminOnly: true,
+      },
       {
         href: "/admin/auditoria",
         label: "Auditoria",
