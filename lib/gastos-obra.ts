@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { etapasCorrespondem } from "@/lib/gastos-etapa";
 
 export type GastoObraRow = {
   id: string;
@@ -79,4 +80,13 @@ export async function listarGastosObra(
   return (data ?? []).map((row) =>
     mapGastoObra(row as Record<string, unknown>)
   );
+}
+
+export async function listarGastosObraPorEtapa(
+  client: SupabaseClient,
+  obraId: string,
+  etapa: string
+): Promise<GastoObraRow[]> {
+  const gastos = await listarGastosObra(client, obraId);
+  return gastos.filter((gasto) => etapasCorrespondem(gasto.etapa, etapa));
 }

@@ -13,7 +13,7 @@ const ETAPAS_NAO_CLASSIFICADAS = new Set([
   "não informado",
 ]);
 
-function normalizeEtapaKey(etapa: string): string {
+export function normalizeEtapaKey(etapa: string): string {
   const trimmed = etapa.trim();
 
   if (!trimmed) {
@@ -30,6 +30,15 @@ function normalizeEtapaKey(etapa: string): string {
   }
 
   return normalized;
+}
+
+/** Compara duas etapas ignorando acentos, caixa e variantes de "não classificado". */
+export function etapasCorrespondem(etapaA: string, etapaB: string): boolean {
+  return normalizeEtapaKey(etapaA) === normalizeEtapaKey(etapaB);
+}
+
+export function urlGastosEtapaObra(obraId: string, etapa: string): string {
+  return `/obras/${obraId}/gastos?etapa=${encodeURIComponent(etapa)}`;
 }
 
 function escolherNomeEtapa(originals: string[]): string {

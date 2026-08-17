@@ -175,7 +175,7 @@ export default async function ObraDetalhePage({ params }: PageProps) {
         ) : (
           <>
             <ObraAcompanhamentoSection itens={acompanhamentos} obraId={id} />
-            <GastosPorEtapaChart gastos={gastosLista} />
+            <GastosPorEtapaChart obraId={id} gastos={gastosLista} />
             <ObraGastosSection
               obraId={id}
               gastos={gastosLista}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import GastoEditarModal from "@/app/components/GastoEditarModal";
 import GastoForm from "@/app/components/GastoForm";
 import { btnPrimarySmClassName } from "@/app/components/ui/form-styles";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { urlGastosEtapaObra } from "@/lib/gastos-etapa";
 import type { GastoObraRow } from "@/lib/gastos-obra";
 
 type ObraGastosSectionProps = {
@@ -94,17 +96,21 @@ export default function ObraGastosSection({
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {gastosPorEtapa.map((item) => (
-              <div
+              <Link
                 key={item.etapa}
-                className="rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-bg)] px-4 py-3"
+                href={urlGastosEtapaObra(obraId, item.etapa)}
+                className="group rounded-xl border border-[var(--cedro-border)] bg-[var(--cedro-bg)] px-4 py-3 transition-colors hover:border-[var(--cedro-primary)]/40 hover:bg-[var(--cedro-surface)]"
               >
-                <p className="text-sm font-medium text-[var(--cedro-text)]">
+                <p className="text-sm font-medium text-[var(--cedro-text)] group-hover:text-[var(--cedro-primary)]">
                   {item.etapa}
                 </p>
                 <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
                   {formatCurrency(item.total)}
                 </p>
-              </div>
+                <p className="mt-2 text-xs font-medium text-[var(--cedro-text-muted)] group-hover:text-[var(--cedro-primary)]">
+                  Ver detalhes →
+                </p>
+              </Link>
             ))}
           </div>
         </div>

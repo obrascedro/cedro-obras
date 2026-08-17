@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bar,
   BarChart,
@@ -14,10 +16,12 @@ import { formatCurrency } from "@/lib/format";
 import {
   agruparGastosPorEtapaDetalhado,
   resumirGastosPorEtapa,
+  urlGastosEtapaObra,
   type GastoEtapaItem,
 } from "@/lib/gastos-etapa";
 
 type GastosPorEtapaChartProps = {
+  obraId: string;
   gastos: { etapa: string; valor_total: number | null }[];
 };
 
@@ -53,9 +57,17 @@ function TooltipConteudo({
   );
 }
 
-export default function GastosPorEtapaChart({ gastos }: GastosPorEtapaChartProps) {
+export default function GastosPorEtapaChart({
+  obraId,
+  gastos,
+}: GastosPorEtapaChartProps) {
+  const router = useRouter();
   const itens = agruparGastosPorEtapaDetalhado(gastos);
   const resumo = resumirGastosPorEtapa(itens);
+
+  function irParaEtapa(etapa: string) {
+    router.push(urlGastosEtapaObra(obraId, etapa));
+  }
 
   if (!itens.length) {
     return (
@@ -136,7 +148,18 @@ export default function GastosPorEtapaChart({ gastos }: GastosPorEtapaChartProps
               className="text-zinc-700 dark:text-zinc-300"
             />
             <Tooltip content={<TooltipConteudo />} cursor={{ fill: "rgba(113,113,122,0.12)" }} />
-            <Bar dataKey="total" radius={[0, 6, 6, 0]} barSize={22}>
+            <Bar
+              dataKey="total"
+              radius={[0, 6, 6, 0]}
+              barSize={22}
+              className="cursor-pointer"
+              onClick={(entry) => {
+                const payload = entry?.payload as GastoEtapaItem | undefined;
+                if (payload?.etapa) {
+                  irParaEtapa(payload.etapa);
+                }
+              }}
+            >
               {itens.map((item, index) => (
                 <Cell
                   key={item.etapa}
@@ -154,12 +177,20 @@ export default function GastosPorEtapaChart({ gastos }: GastosPorEtapaChartProps
             key={item.etapa}
             className="flex flex-col gap-1 border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800"
           >
-            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-              {item.etapa}
-            </span>
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {formatCurrency(item.total)} — {item.percentual}%
-            </span>
+            <Link
+              href={urlGastosEtapaObra(obraId, item.etapa)}
+              className="group flex flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <span className="text-sm font-medium text-zinc-900 transition-colors group-hover:text-zinc-600 dark:text-zinc-50 dark:group-hover:text-zinc-300">
+                {item.etapa}
+              </span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                {formatCurrency(item.total)} — {item.percentual}%
+                <span className="ml-2 text-xs font-medium text-zinc-500 group-hover:underline dark:text-zinc-500">
+                  Ver detalhes
+                </span>
+              </span>
+            </Link>
           </li>
         ))}
       </ul>
