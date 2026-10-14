@@ -1,16 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Trash2 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { Pencil, Search, Trash2 } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { excluirGastoObraAdminAction } from "@/app/actions/gastos-admin";
 import GastoEditarModal from "@/app/components/GastoEditarModal";
 import GastoForm from "@/app/components/GastoForm";
-import { btnPrimarySmClassName } from "@/app/components/ui/form-styles";
+import {
+  btnPrimarySmClassName,
+  btnSecondaryClassName,
+  inputClassName,
+  labelClassName,
+  selectClassName,
+} from "@/app/components/ui/form-styles";
 import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  agruparGastosPorEtapaDetalhado,
+  urlGastosEtapaObra,
+} from "@/lib/gastos-etapa";
+import {
+  MESES_GASTO_OBRA,
+  anosDisponiveisGastosObra,
+  aplicarFiltrosListagemGastosObra,
+  filtrosListagemGastosObraAtivos,
+  somarValorTotalGastos,
+} from "@/lib/gastos-filtro-listagem";
 import { somarGastosMaoDeObra, urlGastosMaoDeObraObra } from "@/lib/gastos-mao-de-obra";
-import { urlGastosEtapaObra } from "@/lib/gastos-etapa";
 import type { GastoObraRow } from "@/lib/gastos-obra";
 
 type ObraGastosSectionProps = {
@@ -36,7 +52,7 @@ export default function ObraGastosSection({
   obraId,
   gastos,
   totalGasto,
-  gastosPorEtapa,
+  gastosPorEtapa: _gastosPorEtapaInicial,
   isAdmin = false,
 }: ObraGastosSectionProps) {
   const router = useRouter();
@@ -44,9 +60,56 @@ export default function ObraGastosSection({
   const [editando, setEditando] = useState<GastoObraRow | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const totalMaoDeObra = somarGastosMaoDeObra(gastos);
+  const anosDisponiveis = useMemo(
+    () => anosDisponiveisGastosObra(gastos),
+    [gastos]
+  );
+
+  const [mesFiltro, setMesFiltro] = useState<string>("");
+  const [anoFiltro, setAnoFiltro] = useState<number>(() => anosDisponiveis[0]);
+  const [busca, setBusca] = useState("");
+
+  const filtros = useMemo(
+    () => ({
+      mes: mesFiltro ? Number(mesFiltro) : null,
+      ano: anoFiltro,
+      busca,
+    }),
+    [mesFiltro, anoFiltro, busca]
+  );
+
+  const filtrosAtivos = filtrosListagemGastosObraAtivos(filtros);
+
+  const gastosFiltrados = useMemo(
+    () => aplicarFiltrosListagemGastosObra(gastos, filtros),
+    [gastos, filtros]
+  );
+
+  const totalFiltrado = useMemo(
+    () => somarValorTotalGastos(gastosFiltrados),
+    [gastosFiltrados]
+  );
+
+  const gastosPorEtapa = useMemo(() => {
+    if (!filtrosAtivos) {
+      return _gastosPorEtapaInicial;
+    }
+    return agruparGastosPorEtapaDetalhado(gastosFiltrados).map(
+      ({ etapa, total }) => ({ etapa, total })
+    );
+  }, [_gastosPorEtapaInicial, filtrosAtivos, gastosFiltrados]);
+
+  const totalMaoDeObra = somarGastosMaoDeObra(
+    filtrosAtivos ? gastosFiltrados : gastos
+  );
   const exibirGastosPorEtapa =
     gastosPorEtapa.length > 0 || totalMaoDeObra > 0;
+
+  function limparFiltros() {
+    setMesFiltro("");
+    setBusca("");
+    setAnoFiltro(anosDisponiveis[0]);
+  }
 
   function handleExcluir(gastoId: string) {
     if (!confirm("Excluir este gasto? O total da obra será recalculado.")) return;
@@ -61,9 +124,11 @@ export default function ObraGastosSection({
     });
   }
 
+  const mesSelecionado = mesFiltro !== "";
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
             Gastos da obra
@@ -74,6 +139,14 @@ export default function ObraGastosSection({
               {formatCurrency(totalGasto)}
             </span>
           </p>
+          {filtrosAtivos ? (
+            <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
+              Total filtrado:{" "}
+              <span className="font-medium text-[var(--cedro-primary)]">
+                {formatCurrency(totalFiltrado)}
+              </span>
+            </p>
+          ) : null}
         </div>
         {isAdmin && !showForm ? (
           <button
@@ -85,6 +158,82 @@ export default function ObraGastosSection({
           </button>
         ) : null}
       </div>
+
+      {gastos.length > 0 ? (
+        <div className="cedro-card flex flex-col gap-4 p-4 sm:p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className={labelClassName} htmlFor="filtro-mes-gastos">
+                Mês
+              </label>
+              <select
+                id="filtro-mes-gastos"
+                value={mesFiltro}
+                onChange={(e) => setMesFiltro(e.target.value)}
+                className={selectClassName}
+              >
+                {MESES_GASTO_OBRA.map((mes) => (
+                  <option key={mes.label} value={mes.value}>
+                    {mes.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClassName} htmlFor="filtro-ano-gastos">
+                Ano
+              </label>
+              <select
+                id="filtro-ano-gastos"
+                value={String(anoFiltro)}
+                disabled={!mesSelecionado}
+                onChange={(e) => setAnoFiltro(Number(e.target.value))}
+                className={`${selectClassName} disabled:cursor-not-allowed disabled:opacity-60`}
+                aria-disabled={!mesSelecionado}
+              >
+                {anosDisponiveis.map((ano) => (
+                  <option key={ano} value={ano}>
+                    {ano}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClassName} htmlFor="busca-gastos-obra">
+                Busca
+              </label>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--cedro-text-muted)]"
+                  aria-hidden
+                />
+                <input
+                  id="busca-gastos-obra"
+                  type="search"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar gasto por descrição, material ou fornecedor…"
+                  className={`pl-9 ${inputClassName}`}
+                />
+              </div>
+            </div>
+          </div>
+          {filtrosAtivos ? (
+            <div className="flex flex-wrap items-center gap-3 border-t border-[var(--cedro-border)] pt-3">
+              <p className="text-xs text-[var(--cedro-text-muted)]">
+                Os cards e a tabela abaixo refletem os filtros aplicados.
+              </p>
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className={btnSecondaryClassName}
+              >
+                Limpar filtros
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {showForm ? (
         <GastoForm
@@ -98,6 +247,11 @@ export default function ObraGastosSection({
         <div className="cedro-card p-6">
           <h3 className="mb-4 text-sm font-semibold tracking-wide text-[var(--cedro-text-muted)] uppercase">
             Gastos por etapa
+            {filtrosAtivos ? (
+              <span className="ml-2 font-normal normal-case tracking-normal text-[var(--cedro-primary)]">
+                (período / busca filtrados)
+              </span>
+            ) : null}
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {totalMaoDeObra > 0 ? (
@@ -143,6 +297,12 @@ export default function ObraGastosSection({
             Nenhum gasto registrado para esta obra.
           </p>
         </div>
+      ) : gastosFiltrados.length === 0 ? (
+        <div className="cedro-card border-dashed p-10 text-center">
+          <p className="text-sm text-[var(--cedro-text-muted)]">
+            Nenhum gasto encontrado
+          </p>
+        </div>
       ) : (
         <div className="cedro-card overflow-hidden">
           <div className="cedro-table-wrap">
@@ -167,7 +327,7 @@ export default function ObraGastosSection({
                 </tr>
               </thead>
               <tbody>
-                {gastos.map((gasto) => (
+                {gastosFiltrados.map((gasto) => (
                   <tr key={gasto.id}>
                     <td className="whitespace-nowrap text-[var(--cedro-text-muted)]">
                       {formatDate(gasto.data_gasto)}
