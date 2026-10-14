@@ -43,3 +43,11 @@ Requisitos:
 - Exibir mensagem de erro caso a consulta ao Supabase falhe
 
 Depois de concluir, informe quais arquivos foram criados ou alterados.
+
+## Cursor Cloud specific instructions
+
+- Install with `npm ci` (Node.js 20+; Node 22 on the default image is fine). The lockfile is `package-lock.json`.
+- Dev server: `npm run dev:lan` (listens on `0.0.0.0:3000`). Production check: `npm run build`.
+- Every route returns 500 until `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are set. Middleware creates the Supabase client on each request and throws when they are missing. `SUPABASE_SERVICE_ROLE_KEY` is required for admin clients and CLI scripts. `OPENAI_API_KEY` is required only for leitura de notas and Engenheiro Cedro.
+- There is no local database. Auth and data come from the hosted Supabase project. `.env*` is gitignored, so do not commit env files.
+- Checks that do not need the network: `npm run lint` (existing warnings, zero errors), `npx tsc --noEmit`, `npm run test:whatsapp`, `node scripts/test-auth-routing.mjs`, `node scripts/test-minhas-notas.mjs`, `npm run test:auditoria`.
