@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import {
   ALL_ROLES,
@@ -79,7 +80,7 @@ export function isProtectedRoute(pathname: string): boolean {
   );
 }
 
-export async function getAppSession(): Promise<AppSession | null> {
+export const getAppSession = cache(async function getAppSession(): Promise<AppSession | null> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -105,7 +106,7 @@ export async function getAppSession(): Promise<AppSession | null> {
     nome: profile.nome,
     funcionario_id: profile.funcionario_id,
   };
-}
+});
 
 export async function requireAdminSession(): Promise<AppSession> {
   const session = await getAppSession();

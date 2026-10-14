@@ -1,16 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import ObraAcompanhamentoSection from "@/app/components/ObraAcompanhamentoSection";
+import GastosPorEtapaChartLazy from "@/app/components/GastosPorEtapaChartLazy";
+import ObraAcompanhamentoAsync from "@/app/components/obras/ObraAcompanhamentoAsync";
+import ObraDetalheResumoLoader from "@/app/components/obras/ObraDetalheResumoLoader";
 import ObraDetalheResumo from "@/app/components/obras/ObraDetalheResumo";
 import PageShell from "@/app/components/PageShell";
-import GastosPorEtapaChart from "@/app/components/GastosPorEtapaChart";
 import ObraGastosSection from "@/app/components/ObraGastosSection";
-import { listarClientesObraAdminAction } from "@/app/actions/obras-admin";
 import { ADMIN_ROLE, getAppSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { agruparGastosPorEtapaDetalhado } from "@/lib/gastos-etapa";
-import { listarGastosObra, somarGastosObra } from "@/lib/gastos-obra";
-import { listarAcompanhamentosPorObra } from "@/lib/acompanhamento-obras/listar";
+import { listarGastosObra } from "@/lib/gastos-obra";
 
 type ObraDetalhe = {
   id: string;
@@ -19,6 +19,7 @@ type ObraDetalhe = {
   status: string;
   orcamento_previsto: number | null;
   valor_recebido: number | null;
+  gasto_realizado: number | null;
   data_inicio: string | null;
   data_previsao_termino: string | null;
   area_m2: number | null;
@@ -56,6 +57,26 @@ function agruparGastosPorEtapa(
   }));
 }
 
+function ObraResumoFallback() {
+  return (
+    <div
+      className="cedro-card h-48 animate-pulse bg-[var(--cedro-bg)]"
+      aria-busy="true"
+      aria-label="Carregando resumo da obra"
+    />
+  );
+}
+
+function ObraAcompanhamentoFallback() {
+  return (
+    <div
+      className="cedro-card h-40 animate-pulse bg-[var(--cedro-bg)]"
+      aria-busy="true"
+      aria-label="Carregando acompanhamento"
+    />
+  );
+}
+
 type PageProps = {
   params: Promise<{ id: string }>;
 };
@@ -63,16 +84,20 @@ type PageProps = {
 export default async function ObraDetalhePage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const session = await getAppSession();
-  const isAdmin = session?.role === ADMIN_ROLE && session.ativo;
 
-  const { data: obra, error: obraError } = await supabase
-    .from("obras")
-    .select(
-      "id, nome, cliente_id, status, orcamento_previsto, valor_recebido, data_inicio, data_previsao_termino, area_m2, observacoes, clientes(nome)"
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const [session, obraResult] = await Promise.all([
+    getAppSession(),
+    supabase
+      .from("obras")
+      .select(
+        "id, nome, cliente_id, status, orcamento_previsto, valor_recebido, gasto_realizado, data_inicio, data_previsao_termino, area_m2, observacoes, clientes(nome)"
+      )
+      .eq("id", id)
+      .maybeSingle(),
+  ]);
+
+  const isAdmin = session?.role === ADMIN_ROLE && session.ativo;
+  const { data: obra, error: obraError } = obraResult;
 
   if (obraError) {
     return (
@@ -103,13 +128,9 @@ export default async function ObraDetalhePage({ params }: PageProps) {
 
   let gastosLista: Awaited<ReturnType<typeof listarGastosObra>> = [];
   let gastosError: Error | null = null;
-  let gastoRealizado = 0;
 
   try {
-    [gastosLista, gastoRealizado] = await Promise.all([
-      listarGastosObra(supabase, id),
-      somarGastosObra(supabase, id),
-    ]);
+    gastosLista = await listarGastosObra(supabase, id);
   } catch (error) {
     gastosError =
       error instanceof Error ? error : new Error("Erro ao carregar gastos.");
@@ -117,11 +138,24 @@ export default async function ObraDetalhePage({ params }: PageProps) {
 
   const gastosPorEtapa = agruparGastosPorEtapa(gastosLista);
   const valorRecebido = obraDetalhe.valor_recebido ?? 0;
+  const gastoRealizado = gastosError
+    ? (obraDetalhe.gasto_realizado ?? 0)
+    : gastosLista.reduce((sum, g) => sum + (g.valor_total ?? 0), 0);
 
-  const [acompanhamentos, clientes] = await Promise.all([
-    listarAcompanhamentosPorObra(supabase, id).catch(() => []),
-    isAdmin ? listarClientesObraAdminAction().catch(() => []) : Promise.resolve([]),
-  ]);
+  const obraResumo = {
+    id: obraDetalhe.id,
+    nome: obraDetalhe.nome,
+    clienteId: obraDetalhe.cliente_id,
+    clienteNome: getClienteNome(obraDetalhe.clientes),
+    status: obraDetalhe.status,
+    orcamentoPrevisto: obraDetalhe.orcamento_previsto ?? 0,
+    valorRecebido,
+    gastoRealizado,
+    dataInicio: obraDetalhe.data_inicio,
+    dataPrevisaoTermino: obraDetalhe.data_previsao_termino,
+    areaM2: obraDetalhe.area_m2,
+    observacoes: obraDetalhe.observacoes,
+  };
 
   return (
     <PageShell
@@ -148,25 +182,22 @@ export default async function ObraDetalhePage({ params }: PageProps) {
       }
     >
       <div className="flex flex-col gap-6">
-        <ObraDetalheResumo
-          isAdmin={isAdmin}
-          clientes={clientes}
-          statusBadgeClass={statusBadgeClass(obraDetalhe.status)}
-          obra={{
-            id: obraDetalhe.id,
-            nome: obraDetalhe.nome,
-            clienteId: obraDetalhe.cliente_id,
-            clienteNome: getClienteNome(obraDetalhe.clientes),
-            status: obraDetalhe.status,
-            orcamentoPrevisto: obraDetalhe.orcamento_previsto ?? 0,
-            valorRecebido,
-            gastoRealizado,
-            dataInicio: obraDetalhe.data_inicio,
-            dataPrevisaoTermino: obraDetalhe.data_previsao_termino,
-            areaM2: obraDetalhe.area_m2,
-            observacoes: obraDetalhe.observacoes,
-          }}
-        />
+        {isAdmin ? (
+          <Suspense fallback={<ObraResumoFallback />}>
+            <ObraDetalheResumoLoader
+              isAdmin={isAdmin}
+              statusBadgeClass={statusBadgeClass(obraDetalhe.status)}
+              obra={obraResumo}
+            />
+          </Suspense>
+        ) : (
+          <ObraDetalheResumo
+            isAdmin={false}
+            clientes={[]}
+            statusBadgeClass={statusBadgeClass(obraDetalhe.status)}
+            obra={obraResumo}
+          />
+        )}
 
         {gastosError ? (
           <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-6 text-sm text-[var(--cedro-error)]">
@@ -174,8 +205,10 @@ export default async function ObraDetalhePage({ params }: PageProps) {
           </div>
         ) : (
           <>
-            <ObraAcompanhamentoSection itens={acompanhamentos} obraId={id} />
-            <GastosPorEtapaChart obraId={id} gastos={gastosLista} />
+            <Suspense fallback={<ObraAcompanhamentoFallback />}>
+              <ObraAcompanhamentoAsync obraId={id} />
+            </Suspense>
+            <GastosPorEtapaChartLazy obraId={id} gastos={gastosLista} />
             <ObraGastosSection
               obraId={id}
               gastos={gastosLista}

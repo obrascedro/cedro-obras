@@ -1,7 +1,7 @@
 import AppLayout from "@/app/components/layout/AppLayout";
 import PageHeader from "@/app/components/ui/PageHeader";
-import { contarNotasPendentesAdminAction } from "@/app/actions/gastos-admin";
 import { ADMIN_ROLE, getAppSession } from "@/lib/auth";
+import { contarNotasPendentesParaLayout } from "@/lib/notas-pendentes-admin";
 
 type PageShellProps = {
   title: string;
@@ -30,10 +30,7 @@ export default async function PageShell({
   hidePageHeader = false,
 }: PageShellProps) {
   const session = await getAppSession();
-  const notasPendentes =
-    session?.role === "admin"
-      ? await contarNotasPendentesAdminAction()
-      : 0;
+  const notasPendentes = await contarNotasPendentesParaLayout(session?.role);
 
   return (
     <AppLayout

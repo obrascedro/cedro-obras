@@ -1,30 +1,40 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import PageShell from "@/app/components/PageShell";
 import DashboardAcompanhamentoCard from "@/app/components/DashboardAcompanhamentoCard";
-import DashboardCharts from "@/app/components/DashboardCharts";
+import DashboardAlertasSection from "@/app/components/dashboard/DashboardAlertasSection";
+import DashboardAnalyticsFallback from "@/app/components/dashboard/DashboardAnalyticsFallback";
+import DashboardChartsSection from "@/app/components/dashboard/DashboardChartsSection";
 import DashboardNotasPendentes from "@/app/components/DashboardNotasPendentes";
 import DashboardObraFilter from "@/app/components/DashboardObraFilter";
 import MetricCard from "@/app/components/ui/MetricCard";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAppSession } from "@/lib/auth";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { carregarDashboardData } from "@/lib/dashboard-data";
+import { carregarDashboardEssencial } from "@/lib/dashboard-data";
 import {
   calcularPercentualOrcamentoUtilizado,
   listarObrasParaFiltroDashboard,
   resolverFiltroObraDashboard,
 } from "@/lib/dashboard-filtro";
-import {
-  alertaBadgeClass,
-  getObraNome,
-} from "@/lib/dashboard";
+import { getObraNome } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
   searchParams: Promise<{ obra?: string }>;
 };
+
+function DashboardAlertasFallback() {
+  return (
+    <div
+      className="cedro-card h-64 animate-pulse bg-[var(--cedro-bg)] p-6"
+      aria-busy="true"
+      aria-label="Carregando alertas"
+    />
+  );
+}
 
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -42,7 +52,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     redirect("/dashboard");
   }
 
-  const data = await carregarDashboardData(supabase, filtro.obraId);
+  const data = await carregarDashboardEssencial(supabase, filtro.obraId);
   const obraSelecionada = filtro.obraSelecionada;
   const obraFiltrada = Boolean(filtro.obraId);
   const obraAtual = data.obrasLista[0] ?? null;
@@ -66,9 +76,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       )
     : null;
 
-  const semGastosObra =
-    obraFiltrada && data.gastosLista.length === 0 && !data.errors.gastos;
-
   return (
     <PageShell
       title={pageTitle}
@@ -86,21 +93,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         obraSelecionadaId={filtro.obraId}
         obraSelecionadaNome={obraSelecionada?.nome ?? null}
       >
-        {semGastosObra ? (
-          <div className="rounded-xl border border-dashed border-[var(--cedro-border)] bg-[var(--cedro-bg)] p-4 text-sm text-[var(--cedro-text-muted)]">
-            Ainda não existem gastos cadastrados para esta obra.
-          </div>
-        ) : null}
-
         {data.errors.obras ? (
           <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
             Erro ao carregar obras: {data.errors.obras}
-          </div>
-        ) : null}
-
-        {data.errors.gastos ? (
-          <div className="rounded-xl border border-[var(--cedro-error)]/30 bg-[var(--cedro-error-bg)] p-4 text-sm text-[var(--cedro-error)]">
-            Erro ao carregar gastos: {data.errors.gastos}
           </div>
         ) : null}
 
@@ -221,10 +216,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </section>
         )}
 
-        <DashboardCharts
-          gastosPorEtapa={data.gastosPorEtapa}
-          gastosPorCategoria={data.gastosPorCategoria}
-        />
+        <Suspense fallback={<DashboardAnalyticsFallback />}>
+          <DashboardChartsSection obraId={filtro.obraId} />
+        </Suspense>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="cedro-card overflow-hidden xl:col-span-2">
@@ -290,41 +284,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             )}
           </div>
 
-          <div className="cedro-card p-6">
-            <h2 className="text-lg font-semibold text-[var(--cedro-text)]">
-              Alertas
-            </h2>
-            <p className="mt-1 text-sm text-[var(--cedro-text-muted)]">
-              {obraFiltrada
-                ? "Situações que precisam de atenção nesta obra."
-                : "Obras que precisam de atenção."}
-            </p>
-
-            {data.alertas.length === 0 ? (
-              <p className="mt-4 text-sm text-[var(--cedro-text-muted)]">
-                {obraFiltrada
-                  ? "Nenhum alerta para esta obra no momento."
-                  : "Nenhum alerta no momento."}
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {data.alertas.map((alerta) => (
-                  <li
-                    key={alerta.id}
-                    className={`rounded-xl border px-4 py-3 ${alertaBadgeClass(alerta.tipo)}`}
-                  >
-                    <Link
-                      href={`/obras/${alerta.obraId}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {alerta.nome}
-                    </Link>
-                    <p className="mt-1 text-sm">{alerta.mensagem}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <Suspense fallback={<DashboardAlertasFallback />}>
+            <DashboardAlertasSection obraId={filtro.obraId} />
+          </Suspense>
         </section>
       </DashboardObraFilter>
     </PageShell>
